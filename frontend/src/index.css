@@ -1,0 +1,32 @@
+/* Bootstrap ya lo importaremos desde el main */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Roboto', sans-serif;
+  background-color: #f8f9fa;
+}
+
+/* Modo oscuro - solo fondo y texto básico */
+[data-bs-theme="dark"] body {
+  background-color: #1a1a1a;
+}
+
+[data-bs-theme="dark"] .bg-light {
+  background-color: #2a2a2a !important;
+}
+
+[data-bs-theme="dark"] .card {
+  background-color: #2a2a2a;
+}
+
+[data-bs-theme="dark"] .table {
+  color: #e0e0e0;
+}
+
+[data-bs-theme="dark"] .text-muted {
+  color: #aaa !important;
+}
