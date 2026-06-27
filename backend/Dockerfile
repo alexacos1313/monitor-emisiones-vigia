@@ -11,11 +11,20 @@ RUN apt-get update && apt-get install -y \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copiar el resto del código
-COPY . .
+# Copiar todo el código
+COPY ./app /app
 
-# Puerto para FastAPI
+# Crear directorio para datos
+RUN mkdir -p /app/data
+
+# Copiar entrypoint y dar permisos
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+# Variable de entorno
+ENV PYTHONPATH=/app
+
 EXPOSE 8000
 
-# Comando para ejecutar la aplicación
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+# Usar entrypoint
+ENTRYPOINT ["/entrypoint.sh"]
