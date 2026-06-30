@@ -4,7 +4,7 @@ from __future__ import annotations
 from sqlalchemy import Column, Integer, String, Float, DateTime, Boolean, ForeignKey, Text, JSON
 from sqlalchemy.orm import relationship
 from datetime import datetime
-from database import Base 
+from app.database import Base 
 
 # =====================================================
 # TABLAS GEOGRÁFICAS Y NORMATIVAS
