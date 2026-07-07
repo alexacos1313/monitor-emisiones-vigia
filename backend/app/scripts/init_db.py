@@ -7,15 +7,15 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from database import engine, SessionLocal, Base
 
 # Importar todos los seeds
-from seed_zonas import seed_zonas
-from seed_ubicaciones import seed_ubicaciones
-from seed_empresas import seed_empresas
-from seed_plantas import seed_plantas
-from seed_sensores import seed_sensores
-from seed_umbrales_normativos import seed_umbrales_normativos
-from seed_umbrales_sensor import seed_umbrales_sensor
-from seed_mediciones import seed_mediciones
-from seed_usuarios import seed_usuarios
+from scripts.seed_zonas import seed_zonas
+from scripts.seed_ubicaciones import seed_ubicaciones
+from scripts.seed_empresas import seed_empresas
+from scripts.seed_plantas import seed_plantas
+from scripts.seed_sensores import seed_sensores
+from scripts.seed_umbrales_normativos import seed_umbrales_normativos
+from scripts.seed_umbrales_sensor import seed_umbrales_sensor
+from scripts.seed_mediciones import seed_mediciones
+from scripts.seed_usuarios import seed_usuarios
 
 
 def init_database():
