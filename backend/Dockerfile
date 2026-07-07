@@ -6,11 +6,13 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY ./app /app
-
 RUN mkdir -p /app/data
 
 ENV PYTHONPATH=/app
 
-EXPOSE 8000
+# Copiar entrypoint
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 
-CMD ["sh", "-c", "python /app/scripts/init_db.py && uvicorn main:app --host 0.0.0.0 --port 8000 --reload"]
+EXPOSE 8000
+ENTRYPOINT ["/entrypoint.sh"]
