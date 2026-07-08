@@ -228,3 +228,42 @@ class PreguntaResponse(BaseModel):
 class WhatsAppRequest(BaseModel):
     mensaje: str
     destinatario: Optional[str] = None
+
+# =====================================================
+# MODELOS DE DASHBOARD
+# =====================================================
+
+class DashboardMetricas(BaseModel):
+    total_sensores: int
+    sensores_activos: int
+    alarmas_pendientes: int
+    alarmas_hoy: int
+    mediciones_hoy: int
+
+class DashboardGrafico(BaseModel):
+    fecha: str
+    contaminante: str
+    valor: float
+    sensor_id: int
+    sensor_nombre: str
+
+class DashboardResponse(BaseModel):
+    metricas: DashboardMetricas
+    graficos: List[DashboardGrafico]
+    ultimas_alarmas: List[AlarmaResponse]
+
+# =====================================================
+# MODELOS DE REPORTES
+# =====================================================
+
+class ReporteRequest(BaseModel):
+    fecha_inicio: str
+    fecha_fin: str
+    sensor_id: Optional[int] = None
+    contaminantes: Optional[List[str]] = None
+    formato: str = "pdf"
+
+class ReporteResponse(BaseModel):
+    mensaje: str
+    archivo: Optional[str] = None
+    url_descarga: Optional[str] = None

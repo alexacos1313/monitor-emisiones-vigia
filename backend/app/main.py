@@ -9,7 +9,7 @@ app = FastAPI(title="VIGIA API", version="1.0.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:8000", "http://localhost:5173", "*"],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -22,6 +22,11 @@ app.include_router(auth_router)
 app.include_router(empresas_router, dependencies=[Depends(get_current_user)])
 app.include_router(plantas_router, dependencies=[Depends(get_current_user)])
 app.include_router(sensores_router, dependencies=[Depends(get_current_user)])
+app.include_router(mediciones_router, dependencies=[Depends(get_current_user)])
+app.include_router(alarmas_router, dependencies=[Depends(get_current_user)])  
+app.include_router(dashboard_router, dependencies=[Depends(get_current_user)])
+app.include_router(reportes_router, dependencies=[Depends(get_current_user)])
+app.include_router(usuarios_router, dependencies=[Depends(get_current_user)]) 
 
 @app.get("/")
 def root():
