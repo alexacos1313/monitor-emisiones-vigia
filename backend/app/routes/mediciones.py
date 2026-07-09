@@ -87,20 +87,22 @@ async def create_medicion(
     db: Session = Depends(get_db)
 ):
     """Crear una nueva medición con contaminantes dinámicos"""
-    sensor = db.query(Sensor).filter(Sensor.id == medicion_data["id_sensor"]).first()
+    
+    # Verificar que el sensor existe
+    sensor = db.query(Sensor).filter(Sensor.id == medicion_data.id_sensor).first()
     if not sensor:
         raise HTTPException(status_code=404, detail="Sensor no encontrado")
     
     # Extraer contaminantes del payload
-    contaminantes_dict = medicion_data.get("contaminantes", {})
+    contaminantes_dict = medicion_data.contaminantes
     
     # Crear la medición
     nueva = Medicion(
-        id_sensor=medicion_data["id_sensor"],
+        id_sensor=medicion_data.id_sensor,
         timestamp=datetime.now(),
-        temperatura=medicion_data.get("temperatura"),
-        flujo=medicion_data.get("flujo"),
-        oxigeno=medicion_data.get("oxigeno"),
+        temperatura=medicion_data.temperatura,
+        flujo=medicion_data.flujo,
+        oxigeno=medicion_data.oxigeno,
         estado="VALIDADO"
     )
     db.add(nueva)
@@ -118,4 +120,22 @@ async def create_medicion(
     db.commit()
     db.refresh(nueva)
     
-    return nueva
+    # Obtener los contaminantes de la medición para la respuesta
+    contaminantes_guardados = db.query(MedicionContaminante).filter(
+        MedicionContaminante.id_medicion == nueva.id
+    ).all()
+    
+    contaminantes_respuesta = {c.contaminante: c.valor for c in contaminantes_guardados}
+    
+
+    return {
+        "id": nueva.id,
+        "id_sensor": nueva.id_sensor,
+        "timestamp": nueva.timestamp,
+        "contaminantes": contaminantes_respuesta,
+        "temperatura": nueva.temperatura,
+        "flujo": nueva.flujo,
+        "oxigeno": nueva.oxigeno,
+        "estado": nueva.estado,
+        "procesada_ia": 0
+    }

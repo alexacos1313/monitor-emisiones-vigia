@@ -11,4 +11,7 @@ fastapi-mail==1.4.1
 reportlab==4.2.2
 websockets==12.0
 PyJWT==2.8.0
-groq==0.4.2
+groq==0.11.0
+llama-index==0.13.0
+llama-index-llms-groq==0.4.0
+twilio==8.10.0

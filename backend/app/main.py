@@ -28,6 +28,18 @@ app.include_router(dashboard_router, dependencies=[Depends(get_current_user)])
 app.include_router(reportes_router, dependencies=[Depends(get_current_user)])
 app.include_router(usuarios_router, dependencies=[Depends(get_current_user)]) 
 
+# ============================================
+# RUTAS WEBSOCKET (NO requieren autenticación)
+# ============================================
+app.include_router(websocket_sensor_router)
+app.include_router(websocket_alerts_router)
+
+# ============================================
+# RUTAS IA Y WHATSAPP (requieren autenticación)
+# ============================================
+app.include_router(ai_router, dependencies=[Depends(get_current_user)])
+app.include_router(whatsapp_router, dependencies=[Depends(get_current_user)])
+
 @app.get("/")
 def root():
     return {"message": "VIGIA API funcionando", "status": "running"}

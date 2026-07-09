@@ -1,17 +1,18 @@
-#backend/app/routes/dashboard.py
+# backend/app/routes/dashboard.py
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import func, and_, extract
 from datetime import datetime, timedelta
 from typing import Optional, List
 from database import get_db
-from models import Medicion, Sensor, Planta, Empresa, Alarma, Usuario
+from models import Medicion, Sensor, Planta, Empresa, Alarma, Usuario, MedicionContaminante
 from auth import get_current_user, get_current_super_admin
 
 router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
 
 # Lista de contaminantes válidos
 CONTAMINANTES_VALIDOS = ["co", "no", "no2", "nox"]
+
 
 @router.get("/resumen")
 def get_resumen(
@@ -28,40 +29,77 @@ def get_resumen(
     if not fecha_inicio:
         fecha_inicio = fecha_fin - timedelta(days=30)
     
-    query_mediciones = db.query(Medicion).filter(
-        Medicion.timestamp >= fecha_inicio,
-        Medicion.timestamp <= fecha_fin
-    )
-    
-    query_alarmas = db.query(Alarma).filter(
-        Alarma.timestamp >= fecha_inicio,
-        Alarma.timestamp <= fecha_fin
-    )
-    
+    # Obtener IDs de sensores según permisos
     if current_user.rol != "SUPER_ADMIN":
         empresa_id = current_user.id_empresa
     
+    sensores_ids = db.query(Sensor.id)
     if empresa_id:
-        sensores_ids = db.query(Sensor.id).join(Planta).filter(Planta.id_empresa == empresa_id).subquery()
-        query_mediciones = query_mediciones.filter(Medicion.id_sensor.in_(sensores_ids))
-        query_alarmas = query_alarmas.filter(Alarma.id_sensor.in_(sensores_ids))
+        sensores_ids = sensores_ids.join(Planta).filter(Planta.id_empresa == empresa_id)
+    sensores_ids = sensores_ids.subquery()
     
-    # Calcular promedios (SOLO CO, NO, NO2, NOX)
-    promedios = query_mediciones.with_entities(
-        func.avg(Medicion.co).label("co_avg"),
-        func.avg(Medicion.no).label("no_avg"),
-        func.avg(Medicion.no2).label("no2_avg"),
-        func.avg(Medicion.nox).label("nox_avg"),
-        func.count(Medicion.id).label("total_mediciones")
-    ).first()
+    # ============================================
+    # MÉTRICAS GENERALES
+    # ============================================
     
-    # Calcular maximos (SOLO CO, NO, NO2, NOX)
-    maximos = query_mediciones.with_entities(
-        func.max(Medicion.co).label("co_max"),
-        func.max(Medicion.no).label("no_max"),
-        func.max(Medicion.no2).label("no2_max"),
-        func.max(Medicion.nox).label("nox_max")
-    ).first()
+    # Total mediciones
+    total_mediciones = db.query(func.count(Medicion.id)).filter(
+        Medicion.id_sensor.in_(sensores_ids),
+        Medicion.timestamp >= fecha_inicio,
+        Medicion.timestamp <= fecha_fin
+    ).scalar() or 0
+    
+    # Sensores activos
+    query_sensores = db.query(Sensor).filter(Sensor.estado == "ACTIVO")
+    if empresa_id:
+        query_sensores = query_sensores.join(Planta).filter(Planta.id_empresa == empresa_id)
+    sensores_activos = query_sensores.count()
+    
+    # ============================================
+    # PROMEDIOS POR CONTAMINANTE (dinámico)
+    # ============================================
+    
+    promedios = db.query(
+        MedicionContaminante.contaminante,
+        func.avg(MedicionContaminante.valor).label("promedio")
+    ).join(Medicion).filter(
+        Medicion.id_sensor.in_(sensores_ids),
+        Medicion.timestamp >= fecha_inicio,
+        Medicion.timestamp <= fecha_fin,
+        MedicionContaminante.contaminante.in_(["CO", "NO", "NO2", "NOX"])
+    ).group_by(MedicionContaminante.contaminante).all()
+    
+    promedios_dict = {}
+    for p in promedios:
+        promedios_dict[p.contaminante.lower()] = float(p.promedio) if p.promedio else 0
+    
+    # ============================================
+    # MÁXIMOS POR CONTAMINANTE (dinámico)
+    # ============================================
+    
+    maximos = db.query(
+        MedicionContaminante.contaminante,
+        func.max(MedicionContaminante.valor).label("maximo")
+    ).join(Medicion).filter(
+        Medicion.id_sensor.in_(sensores_ids),
+        Medicion.timestamp >= fecha_inicio,
+        Medicion.timestamp <= fecha_fin,
+        MedicionContaminante.contaminante.in_(["CO", "NO", "NO2", "NOX"])
+    ).group_by(MedicionContaminante.contaminante).all()
+    
+    maximos_dict = {}
+    for m in maximos:
+        maximos_dict[m.contaminante.lower()] = float(m.maximo) if m.maximo else 0
+    
+    # ============================================
+    # ALARMAS
+    # ============================================
+    
+    query_alarmas = db.query(Alarma).filter(
+        Alarma.id_sensor.in_(sensores_ids),
+        Alarma.timestamp >= fecha_inicio,
+        Alarma.timestamp <= fecha_fin
+    )
     
     total_alarmas = query_alarmas.count()
     alarmas_pendientes = query_alarmas.filter(Alarma.confirmada_por == None).count()
@@ -71,17 +109,10 @@ def get_resumen(
         Alarma.tipo, 
         func.count(Alarma.id).label("total")
     ).filter(
+        Alarma.id_sensor.in_(sensores_ids),
         Alarma.timestamp >= fecha_inicio,
         Alarma.timestamp <= fecha_fin
-    )
-    if empresa_id:
-        alarmas_por_tipo = alarmas_por_tipo.filter(Alarma.id_sensor.in_(sensores_ids))
-    alarmas_por_tipo = alarmas_por_tipo.group_by(Alarma.tipo).all()
-    
-    query_sensores = db.query(Sensor).filter(Sensor.estado == "ACTIVO")
-    if empresa_id:
-        query_sensores = query_sensores.join(Planta).filter(Planta.id_empresa == empresa_id)
-    sensores_activos = query_sensores.count()
+    ).group_by(Alarma.tipo).all()
     
     return {
         "periodo": {
@@ -89,16 +120,16 @@ def get_resumen(
             "fecha_fin": fecha_fin
         },
         "promedios": {
-            "co": round(promedios.co_avg, 2) if promedios.co_avg else 0,
-            "no": round(promedios.no_avg, 2) if promedios.no_avg else 0,
-            "no2": round(promedios.no2_avg, 2) if promedios.no2_avg else 0,
-            "nox": round(promedios.nox_avg, 2) if promedios.nox_avg else 0
+            "co": promedios_dict.get("co", 0),
+            "no": promedios_dict.get("no", 0),
+            "no2": promedios_dict.get("no2", 0),
+            "nox": promedios_dict.get("nox", 0)
         },
         "maximos": {
-            "co": round(maximos.co_max, 2) if maximos.co_max else 0,
-            "no": round(maximos.no_max, 2) if maximos.no_max else 0,
-            "no2": round(maximos.no2_max, 2) if maximos.no2_max else 0,
-            "nox": round(maximos.nox_max, 2) if maximos.nox_max else 0
+            "co": maximos_dict.get("co", 0),
+            "no": maximos_dict.get("no", 0),
+            "no2": maximos_dict.get("no2", 0),
+            "nox": maximos_dict.get("nox", 0)
         },
         "alarmas": {
             "total": total_alarmas,
@@ -107,8 +138,9 @@ def get_resumen(
             "por_tipo": [{"tipo": t, "total": total} for t, total in alarmas_por_tipo]
         },
         "sensores_activos": sensores_activos,
-        "total_mediciones": promedios.total_mediciones or 0
+        "total_mediciones": total_mediciones
     }
+
 
 @router.get("/tendencias")
 def get_tendencias(
@@ -121,6 +153,7 @@ def get_tendencias(
     """Obtener tendencia de un contaminante por dia"""
     
     # Validar contaminante
+    contaminante_upper = contaminante.upper()
     if contaminante not in CONTAMINANTES_VALIDOS:
         raise HTTPException(
             status_code=400, 
@@ -130,26 +163,31 @@ def get_tendencias(
     fecha_fin = datetime.now()
     fecha_inicio = fecha_fin - timedelta(days=dias)
     
-    query = db.query(
-        func.date(Medicion.timestamp).label("fecha"),
-        func.avg(getattr(Medicion, contaminante)).label("promedio"),
-        func.max(getattr(Medicion, contaminante)).label("maximo"),
-        func.min(getattr(Medicion, contaminante)).label("minimo"),
-        func.count(Medicion.id).label("mediciones")
-    ).filter(
-        Medicion.timestamp >= fecha_inicio,
-        Medicion.timestamp <= fecha_fin,
-        getattr(Medicion, contaminante) != None
-    )
-    
     if current_user.rol != "SUPER_ADMIN":
         empresa_id = current_user.id_empresa
     
+    sensores_ids = db.query(Sensor.id)
     if empresa_id:
-        sensores_ids = db.query(Sensor.id).join(Planta).filter(Planta.id_empresa == empresa_id).subquery()
-        query = query.filter(Medicion.id_sensor.in_(sensores_ids))
+        sensores_ids = sensores_ids.join(Planta).filter(Planta.id_empresa == empresa_id)
+    sensores_ids = sensores_ids.subquery()
     
-    resultados = query.group_by(func.date(Medicion.timestamp)).order_by("fecha").all()
+    # Obtener tendencias desde mediciones_contaminantes
+    resultados = db.query(
+        func.date(Medicion.timestamp).label("fecha"),
+        func.avg(MedicionContaminante.valor).label("promedio"),
+        func.max(MedicionContaminante.valor).label("maximo"),
+        func.min(MedicionContaminante.valor).label("minimo"),
+        func.count(MedicionContaminante.id).label("mediciones")
+    ).join(
+        Medicion, MedicionContaminante.id_medicion == Medicion.id
+    ).filter(
+        Medicion.id_sensor.in_(sensores_ids),
+        Medicion.timestamp >= fecha_inicio,
+        Medicion.timestamp <= fecha_fin,
+        MedicionContaminante.contaminante == contaminante_upper
+    ).group_by(
+        func.date(Medicion.timestamp)
+    ).order_by("fecha").all()
     
     return {
         "contaminante": contaminante,
@@ -166,6 +204,7 @@ def get_tendencias(
         ]
     }
 
+
 @router.get("/comparativa")
 def get_comparativa(
     contaminante: str = Query(..., description="co, no, no2, nox"),
@@ -180,6 +219,7 @@ def get_comparativa(
     """Comparar dos periodos de tiempo"""
     
     # Validar contaminante
+    contaminante_upper = contaminante.upper()
     if contaminante not in CONTAMINANTES_VALIDOS:
         raise HTTPException(
             status_code=400, 
@@ -189,16 +229,21 @@ def get_comparativa(
     if current_user.rol != "SUPER_ADMIN":
         empresa_id = current_user.id_empresa
     
+    sensores_ids = db.query(Sensor.id)
+    if empresa_id:
+        sensores_ids = sensores_ids.join(Planta).filter(Planta.id_empresa == empresa_id)
+    sensores_ids = sensores_ids.subquery()
+    
     def obtener_promedio(fecha_inicio, fecha_fin):
-        query = db.query(func.avg(getattr(Medicion, contaminante))).filter(
+        result = db.query(
+            func.avg(MedicionContaminante.valor)
+        ).join(Medicion).filter(
+            Medicion.id_sensor.in_(sensores_ids),
             Medicion.timestamp >= fecha_inicio,
             Medicion.timestamp <= fecha_fin,
-            getattr(Medicion, contaminante) != None
-        )
-        if empresa_id:
-            sensores_ids = db.query(Sensor.id).join(Planta).filter(Planta.id_empresa == empresa_id).subquery()
-            query = query.filter(Medicion.id_sensor.in_(sensores_ids))
-        return query.scalar() or 0
+            MedicionContaminante.contaminante == contaminante_upper
+        ).scalar() or 0
+        return float(result)
     
     promedio1 = obtener_promedio(periodo1_inicio, periodo1_fin)
     promedio2 = obtener_promedio(periodo2_inicio, periodo2_fin)
@@ -221,6 +266,7 @@ def get_comparativa(
         "tendencia": "aumento" if variacion > 0 else "disminucion" if variacion < 0 else "estable"
     }
 
+
 @router.get("/top-empresas")
 def get_top_empresas(
     contaminante: str = Query(..., description="co, no, no2, nox"),
@@ -229,6 +275,8 @@ def get_top_empresas(
     db: Session = Depends(get_db)
 ):
     """Top empresas por nivel de contaminante (solo SUPER_ADMIN)"""
+    
+    contaminante_upper = contaminante.upper()
     
     # Validar contaminante
     if contaminante not in CONTAMINANTES_VALIDOS:
@@ -240,19 +288,21 @@ def get_top_empresas(
     resultados = db.query(
         Empresa.id,
         Empresa.nombre,
-        func.avg(getattr(Medicion, contaminante)).label("promedio")
+        func.avg(MedicionContaminante.valor).label("promedio")
     ).join(
         Planta, Planta.id_empresa == Empresa.id
     ).join(
         Sensor, Sensor.id_planta == Planta.id
     ).join(
         Medicion, Medicion.id_sensor == Sensor.id
+    ).join(
+        MedicionContaminante, MedicionContaminante.id_medicion == Medicion.id
     ).filter(
-        getattr(Medicion, contaminante) != None
+        MedicionContaminante.contaminante == contaminante_upper
     ).group_by(
         Empresa.id, Empresa.nombre
     ).order_by(
-        func.avg(getattr(Medicion, contaminante)).desc()
+        func.avg(MedicionContaminante.valor).desc()
     ).limit(limit).all()
     
     return [
