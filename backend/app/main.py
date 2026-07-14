@@ -1,9 +1,17 @@
 # backend/app/main.py
+import sys
+import os
+import threading
+import subprocess
+import time
 from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 
-from routes import *
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
 from auth import get_current_user
+from routes import *
+
 
 app = FastAPI(title="VIGIA API", version="1.0.0")
 
@@ -15,10 +23,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Rutas publicas (no requieren autenticacion)
+# Rutas publicas
 app.include_router(auth_router)
 
-# Rutas protegidas (requieren autenticacion)
+# Rutas protegidas
 app.include_router(empresas_router, dependencies=[Depends(get_current_user)])
 app.include_router(plantas_router, dependencies=[Depends(get_current_user)])
 app.include_router(sensores_router, dependencies=[Depends(get_current_user)])
@@ -28,15 +36,11 @@ app.include_router(dashboard_router, dependencies=[Depends(get_current_user)])
 app.include_router(reportes_router, dependencies=[Depends(get_current_user)])
 app.include_router(usuarios_router, dependencies=[Depends(get_current_user)]) 
 
-# ============================================
-# RUTAS WEBSOCKET (NO requieren autenticación)
-# ============================================
+# WebSocket (NO requieren autenticación)
 app.include_router(websocket_sensor_router)
 app.include_router(websocket_alerts_router)
 
-# ============================================
-# RUTAS IA Y WHATSAPP (requieren autenticación)
-# ============================================
+# IA y WhatsApp
 app.include_router(ai_router, dependencies=[Depends(get_current_user)])
 app.include_router(whatsapp_router, dependencies=[Depends(get_current_user)])
 
@@ -47,3 +51,4 @@ def root():
 @app.get("/health")
 def health():
     return {"status": "healthy"}
+

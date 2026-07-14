@@ -1,6 +1,7 @@
-#backend/app/routes/alarmas.py
+# backend/app/routes/alarmas.py
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
+from sqlalchemy import func  
 from typing import List, Optional
 from datetime import datetime
 from database import get_db
@@ -67,8 +68,10 @@ def confirmar_alarma(
     
     return {"message": "Alarma confirmada"}
 
+
 @router.get("/estadisticas")
 def get_estadisticas_alarmas(
+    sensor_id: Optional[int] = Query(None),  
     current_user: Usuario = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -78,23 +81,48 @@ def get_estadisticas_alarmas(
     if current_user.rol != "SUPER_ADMIN":
         query = query.join(Sensor).join(Planta).filter(Planta.id_empresa == current_user.id_empresa)
     
+    # Filtrar por sensor si se proporciona
+    if sensor_id:
+        query = query.filter(Alarma.id_sensor == sensor_id)
+    
     total = query.count()
     pendientes = query.filter(Alarma.confirmada_por == None).count()
     confirmadas = query.filter(Alarma.confirmada_por != None).count()
     
+    # Por tipo
+    por_tipo = db.query(
+        Alarma.tipo, 
+        func.count(Alarma.id).label("total")
+    )
+    
+    if current_user.rol != "SUPER_ADMIN":
+        por_tipo = por_tipo.join(Sensor).join(Planta).filter(Planta.id_empresa == current_user.id_empresa)
+    
+    if sensor_id:
+        por_tipo = por_tipo.filter(Alarma.id_sensor == sensor_id)
+    
+    por_tipo = por_tipo.group_by(Alarma.tipo).all()
+    
+    # Por contaminante
     por_contaminante = db.query(
         Alarma.contaminante, 
-        db.func.count(Alarma.id)
-    ).group_by(Alarma.contaminante)
+        func.count(Alarma.id).label("total")
+    )
     
     if current_user.rol != "SUPER_ADMIN":
         por_contaminante = por_contaminante.join(Sensor).join(Planta).filter(Planta.id_empresa == current_user.id_empresa)
+    
+    if sensor_id:
+        por_contaminante = por_contaminante.filter(Alarma.id_sensor == sensor_id)
+    
+    por_contaminante = por_contaminante.group_by(Alarma.contaminante).all()
     
     return {
         "total": total,
         "pendientes": pendientes,
         "confirmadas": confirmadas,
-        "por_contaminante": [{"contaminante": c, "total": t} for c, t in por_contaminante.all()]
+        "por_tipo": [{"tipo": t, "total": total} for t, total in por_tipo],
+        "por_contaminante": [{"contaminante": c, "total": total} for c, total in por_contaminante]
     }
 
 @router.delete("/{alarma_id}")

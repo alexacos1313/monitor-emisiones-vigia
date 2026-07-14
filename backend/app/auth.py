@@ -1,4 +1,5 @@
 #backend\app\auth.py
+import os
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 from jose import JWTError, jwt
@@ -9,7 +10,7 @@ from sqlalchemy.orm import Session
 from database import get_db
 from models import Usuario
 
-SECRET_KEY = "tu-clave-secreta-cambiarla-en-produccion"
+SECRET_KEY = os.getenv("SECRET_KEY", "mi-clave-secreta-cambiar-en-produccion-12345")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 480
 

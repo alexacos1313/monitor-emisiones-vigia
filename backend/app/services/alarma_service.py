@@ -5,29 +5,25 @@ from datetime import datetime, timedelta
 import asyncio
 import logging
 
-# Configurar logging
 logger = logging.getLogger(__name__)
 
-# Intentar importar configuraciones (pueden no existir en entorno de prueba)
 try:
-    from email_config import enviar_correo
+    from app.email_config import enviar_correo
 except ImportError:
     def enviar_correo(destinatario, subject, body):
         print(f"Correo a {destinatario}: {subject}")
         return True
 
 try:
-    from whatsapp_config import enviar_whatsapp
+    from app.whatsapp_config import enviar_whatsapp
 except ImportError:
     def enviar_whatsapp(mensaje, destinatario):
         print(f"WhatsApp a {destinatario}: {mensaje}")
         return True
 
-# Lista de contaminantes válidos
-CONTAMINANTES_VALIDOS = ["co", "no", "no2", "nox"]
+CONTAMINANTES_VALIDOS = ["CO", "NO", "NO2", "NOX"]
 
 def enviar_email_alarma(destinatario: str, nombre_empresa: str, sensor_nombre: str, contaminante: str, valor: float, tipo: str, mensaje: str):
-    """Enviar email de alarma"""
     subject = f"ALARMA {tipo} - {nombre_empresa} - {contaminante}"
     body = f"""
     <h2>Alarma de Emisiones</h2>
@@ -42,21 +38,26 @@ def enviar_email_alarma(destinatario: str, nombre_empresa: str, sensor_nombre: s
     return enviar_correo(destinatario, subject, body)
 
 async def verificar_y_generar_alarmas(db: Session, medicion_id: int):
-    """Verificar si una medicion genera alarmas"""
+    logger.info(f"=== INICIANDO VERIFICACION PARA MEDICION {medicion_id} ===")
     
-    # Obtener la medición
     medicion = db.query(Medicion).filter(Medicion.id == medicion_id).first()
     if not medicion:
-        logger.warning(f"Medición {medicion_id} no encontrada")
+        logger.warning(f"Medicion {medicion_id} no encontrada")
         return []
     
-    # Obtener umbrales del sensor
-    umbrales = db.query(UmbralSensor).filter(UmbralSensor.id_sensor == medicion.id_sensor).all()
-    if not umbrales:
-        logger.info(f"No hay umbrales configurados para sensor {medicion.id_sensor}")
+    # Obtener contaminantes desde la tabla relacionada
+    contaminantes_medicion = db.query(MedicionContaminante).filter(
+        MedicionContaminante.id_medicion == medicion_id
+    ).all()
+    
+    if not contaminantes_medicion:
+        logger.warning(f"No hay contaminantes para medicion {medicion_id}")
         return []
     
-    # Obtener información del sensor
+    logger.info(f"Contaminantes encontrados en medicion:")
+    for c in contaminantes_medicion:
+        logger.info(f"  {c.contaminante} = {c.valor}")
+    
     sensor = db.query(Sensor).filter(Sensor.id == medicion.id_sensor).first()
     if not sensor:
         logger.warning(f"Sensor {medicion.id_sensor} no encontrado")
@@ -72,69 +73,77 @@ async def verificar_y_generar_alarmas(db: Session, medicion_id: int):
         logger.warning(f"Empresa {planta.id_empresa} no encontrada")
         return []
     
-    # Obtener administradores para notificar
+    # Obtener umbrales del sensor
+    umbrales = db.query(UmbralSensor).filter(UmbralSensor.id_sensor == sensor.id).all()
+    if not umbrales:
+        logger.warning(f"No hay umbrales configurados para sensor {sensor.id}")
+        return []
+    
+    logger.info(f"Umbrales configurados para sensor {sensor.id}:")
+    for u in umbrales:
+        logger.info(f"  {u.contaminante}: alerta={u.limite_alerta}, critico={u.limite_critico}")
+    
     admins = db.query(Usuario).filter(
         Usuario.id_empresa == empresa.id,
         Usuario.rol.in_(["SUPER_ADMIN", "EMPRESA_ADMIN"]),
         Usuario.activo == 1
     ).all()
     
-    logger.info(f"Administradores encontrados para empresa {empresa.id}: {len(admins)}")
+    logger.info(f"Administradores encontrados: {len(admins)}")
     
     alarmas_generadas = []
     
-    # Obtener todos los contaminantes de la medición
-    contaminantes_medicion = db.query(MedicionContaminante).filter(
-        MedicionContaminante.id_medicion == medicion.id
-    ).all()
-    
-    # Crear un diccionario para acceso rápido
+    # Crear un diccionario para acceso rápido a los valores de contaminantes
     valores_contaminantes = {c.contaminante: c.valor for c in contaminantes_medicion}
     
     for umbral in umbrales:
-        contaminante_upper = umbral.contaminante.upper()
+        contaminante = umbral.contaminante  # Ej: "CO", "NO", "NO2", "NOX"
+        logger.info(f"Verificando contaminante: {contaminante}")
         
-        # Verificar que el contaminante sea válido
-        if umbral.contaminante.lower() not in CONTAMINANTES_VALIDOS:
-            logger.warning(f"Contaminante no válido: {umbral.contaminante}")
+        if contaminante not in CONTAMINANTES_VALIDOS:
+            logger.warning(f"Contaminante no valido: {contaminante}")
             continue
         
-        # Obtener el valor del diccionario
-        valor = valores_contaminantes.get(contaminante_upper)
+        valor = valores_contaminantes.get(contaminante)
+        logger.info(f"  Valor obtenido: {valor}")
         
         if valor is None:
-            logger.info(f"No hay valor para {umbral.contaminante} en la medición {medicion.id}")
+            logger.info(f"  Valor None para {contaminante}")
             continue
         
-        # Determinar tipo de alarma
+        logger.info(f"  Comparando: {valor} >= {umbral.limite_alerta}?")
+        
         if valor >= umbral.limite_critico:
             tipo = "CRITICO"
-            mensaje = f"Valor {valor} supera límite crítico ({umbral.limite_critico})"
+            mensaje = f"Valor {valor} supera limite critico ({umbral.limite_critico})"
+            logger.info(f"  GENERANDO ALARMA CRITICO para {contaminante}")
         elif valor >= umbral.limite_alerta:
             tipo = "ALERTA"
-            mensaje = f"Valor {valor} supera límite de alerta ({umbral.limite_alerta})"
+            mensaje = f"Valor {valor} supera limite de alerta ({umbral.limite_alerta})"
+            logger.info(f"  GENERANDO ALARMA ALERTA para {contaminante}")
         else:
+            logger.info(f"  No supera umbrales")
             continue
         
-        # Verificar si ya existe una alarma similar en las últimas 24h
         hace_24h = datetime.now() - timedelta(hours=24)
         alarma_existente = db.query(Alarma).filter(
             Alarma.id_sensor == medicion.id_sensor,
-            Alarma.contaminante == umbral.contaminante,
+            Alarma.contaminante == contaminante,
             Alarma.tipo == tipo,
             Alarma.timestamp >= hace_24h
         ).first()
         
         if alarma_existente:
-            logger.info(f"Alarma ya existe para {umbral.contaminante} en las últimas 24h")
+            logger.info(f"Alarma ya existe para {contaminante} en las ultimas 24h")
             continue
         
-        # Crear la alarma
+        logger.info(f"CREANDO ALARMA para {contaminante}")
+        
         alarma = Alarma(
             id_medicion=medicion.id,
             id_sensor=medicion.id_sensor,
             tipo=tipo,
-            contaminante=umbral.contaminante,
+            contaminante=contaminante,
             valor=valor,
             umbral=umbral.limite_critico if tipo == "CRITICO" else umbral.limite_alerta,
             mensaje=mensaje,
@@ -144,31 +153,28 @@ async def verificar_y_generar_alarmas(db: Session, medicion_id: int):
         db.add(alarma)
         db.flush()
         
-        # Enviar notificaciones
         emails_enviados = 0
         for admin in admins:
-            # Email
             if admin.email:
                 try:
                     logger.info(f"Enviando email a {admin.email}")
                     resultado = enviar_email_alarma(
                         admin.email, empresa.nombre, sensor.nombre,
-                        umbral.contaminante, valor, tipo, mensaje
+                        contaminante, valor, tipo, mensaje
                     )
                     if resultado:
                         emails_enviados += 1
                 except Exception as e:
                     logger.error(f"Error enviando email a {admin.email}: {e}")
             
-            # WhatsApp
             if admin.telefono:
                 try:
                     logger.info(f"Enviando WhatsApp a {admin.telefono}")
                     mensaje_whatsapp = (
-                        f" ALARMA {tipo}\n"
+                        f"ALARMA {tipo}\n"
                         f"Empresa: {empresa.nombre}\n"
                         f"Sensor: {sensor.nombre}\n"
-                        f"Contaminante: {umbral.contaminante}\n"
+                        f"Contaminante: {contaminante}\n"
                         f"Valor: {valor}\n"
                         f"{mensaje}"
                     )
@@ -176,24 +182,23 @@ async def verificar_y_generar_alarmas(db: Session, medicion_id: int):
                 except Exception as e:
                     logger.error(f"Error enviando WhatsApp a {admin.telefono}: {e}")
         
-        # Marcar como enviada si al menos un email fue enviado
         if emails_enviados > 0:
             alarma.enviada = 1
             alarma.fecha_envio = datetime.now()
         
         alarmas_generadas.append(alarma)
         
-        # Notificar por WebSocket
         try:
             from websocket_manager import manager
-            asyncio.create_task(manager.broadcast_to_empresa(
+            logger.info(f"Enviando WebSocket a empresa {empresa.id}")
+            await manager.broadcast_to_empresa(
                 empresa.id,
                 {
                     "tipo": "nueva_alarma",
                     "data": {
                         "alarma_id": alarma.id,
                         "sensor": sensor.nombre,
-                        "contaminante": umbral.contaminante,
+                        "contaminante": contaminante,
                         "valor": valor,
                         "tipo": tipo,
                         "mensaje": mensaje,
@@ -201,13 +206,14 @@ async def verificar_y_generar_alarmas(db: Session, medicion_id: int):
                     }
                 },
                 db
-            ))
+            )
         except Exception as e:
             logger.error(f"Error notificando WebSocket: {e}")
     
-    # Confirmar cambios
     if alarmas_generadas:
         db.commit()
         logger.info(f"Se generaron {len(alarmas_generadas)} alarmas")
+    else:
+        logger.info("No se generaron alarmas")
     
     return alarmas_generadas

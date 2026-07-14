@@ -74,6 +74,27 @@ class EmpresaResponse(EmpresaBase):
     model_config = ConfigDict(from_attributes=True)
 
 # =====================================================
+# MODELOS DE UBICACIONES
+# =====================================================
+
+class UbicacionBase(BaseModel):
+    provincia: str
+    municipio: str
+    distrito: Optional[str] = None
+    codigo_postal: Optional[str] = None
+    latitud: Optional[float] = None
+    longitud: Optional[float] = None
+    zona_normativa_id: Optional[int] = None
+
+class UbicacionCreate(UbicacionBase):
+    pass
+
+class UbicacionResponse(UbicacionBase):
+    id: int
+    
+    model_config = ConfigDict(from_attributes=True)
+
+# =====================================================
 # MODELOS DE PLANTAS
 # =====================================================
 
@@ -93,6 +114,7 @@ class PlantaResponse(PlantaBase):
     id: int
     fecha_alta: Optional[datetime] = None
     activo: int = 1
+    empresa_nombre: Optional[str] = None
     
     model_config = ConfigDict(from_attributes=True)
 
@@ -110,32 +132,54 @@ class SensorBase(BaseModel):
     frecuencia_medicion: int = 60
 
 class SensorCreate(SensorBase):
-    contaminantes: Optional[List[str]] = None  # Lista de contaminantes que mide
+    contaminantes: Optional[List[str]] = None
 
 class SensorResponse(SensorBase):
     id: int
+    planta_nombre: Optional[str] = None
     ultima_calibracion: Optional[datetime] = None
     estado: str
-    contaminantes: Optional[List[str]] = None  # Lista de contaminantes que mide
+    contaminantes: Optional[List[str]] = None
     
     model_config = ConfigDict(from_attributes=True)
 
 # =====================================================
-# MODELOS DE UMBRAL
+# MODELOS DE SENSOR 
+# =====================================================
+class SensorUpdate(BaseModel):
+    nombre: Optional[str] = None
+    tipo_analizador: Optional[str] = None
+    modelo: Optional[str] = None
+    fabricante: Optional[str] = None
+    fecha_instalacion: Optional[datetime] = None
+    frecuencia_medicion: Optional[int] = None
+    estado: Optional[str] = None
+    contaminantes: Optional[List[str]] = None
+    
+# =====================================================
+# MODELOS DE UMBRALES DE SENSOR 
 # =====================================================
 
-class UmbralBase(BaseModel):
+class UmbralSensorBase(BaseModel):
     contaminante: str
     limite_alerta: float
     limite_critico: float
+    tiempo_ventana: Optional[int] = 0
     motivo: Optional[str] = None
 
-class UmbralCreate(UmbralBase):
-    pass
+class UmbralSensorCreate(UmbralSensorBase):
+    id_sensor: int
 
-class UmbralResponse(UmbralBase):
+class UmbralSensorUpdate(BaseModel):
+    limite_alerta: Optional[float] = None
+    limite_critico: Optional[float] = None
+    tiempo_ventana: Optional[int] = None
+    motivo: Optional[str] = None
+
+class UmbralSensorResponse(UmbralSensorBase):
     id: int
     id_sensor: int
+    fecha_aplicacion: Optional[datetime] = None
     
     model_config = ConfigDict(from_attributes=True)
 
@@ -143,46 +187,34 @@ class UmbralResponse(UmbralBase):
 # MODELOS DE MEDICIONES
 # =====================================================
 
-# Schema para los contaminantes individuales
 class MedicionContaminanteSchema(BaseModel):
     contaminante: str
     valor: float
 
-# Schema base con contaminantes dinámicos
 class MedicionBase(BaseModel):
     id_sensor: int
-    contaminantes: Dict[str, float]  # {"CO": 45.2, "NO": 15.6, "NO2": 8.2}
+    contaminantes: List[MedicionContaminanteSchema]  # Lista de {contaminante, valor}
     temperatura: Optional[float] = None
     flujo: Optional[float] = None
     oxigeno: Optional[float] = None
     estado: Optional[str] = "VALIDADO"
 
-# Schema para crear (igual que el base)
 class MedicionCreate(MedicionBase):
     pass
 
-# Schema para respuesta (incluye campos adicionales)
-class MedicionResponse(MedicionBase):
+class MedicionResponse(BaseModel):
     id: int
     id_sensor: int
     timestamp: datetime
+    temperatura: Optional[float] = None
+    flujo: Optional[float] = None
+    oxigeno: Optional[float] = None
+    estado: str
+    procesada_ia: int
     sensor_nombre: Optional[str] = None
-    procesada_ia: int = 0
+    contaminantes: List[MedicionContaminanteSchema]
     
     model_config = ConfigDict(from_attributes=True)
-
-# Schema para estadísticas por contaminante
-class MedicionEstadisticaContaminante(BaseModel):
-    contaminante: str
-    promedio: Optional[float] = None
-    maximo: Optional[float] = None
-    minimo: Optional[float] = None
-    total: int = 0
-
-class MedicionEstadisticasResponse(BaseModel):
-    fecha: str
-    contaminantes: Dict[str, MedicionEstadisticaContaminante]
-    total_mediciones: int
 
 # =====================================================
 # MODELOS DE ALARMAS
@@ -192,6 +224,7 @@ class AlarmaResponse(BaseModel):
     id: int
     id_medicion: int
     id_sensor: int
+    sensor_nombre: Optional[str] = None
     tipo: str
     contaminante: str
     valor: float
@@ -199,9 +232,10 @@ class AlarmaResponse(BaseModel):
     mensaje: Optional[str]
     timestamp: datetime
     enviada: int
+    fecha_envio: Optional[datetime] = None
     confirmada_por: Optional[int]
     confirmada_en: Optional[datetime]
-    sensor_nombre: Optional[str] = None
+    confirmado_por_nombre: Optional[str] = None
     
     model_config = ConfigDict(from_attributes=True)
 
@@ -251,19 +285,3 @@ class DashboardResponse(BaseModel):
     metricas: DashboardMetricas
     graficos: List[DashboardGrafico]
     ultimas_alarmas: List[AlarmaResponse]
-
-# =====================================================
-# MODELOS DE REPORTES
-# =====================================================
-
-class ReporteRequest(BaseModel):
-    fecha_inicio: str
-    fecha_fin: str
-    sensor_id: Optional[int] = None
-    contaminantes: Optional[List[str]] = None
-    formato: str = "pdf"
-
-class ReporteResponse(BaseModel):
-    mensaje: str
-    archivo: Optional[str] = None
-    url_descarga: Optional[str] = None

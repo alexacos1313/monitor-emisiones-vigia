@@ -17,6 +17,7 @@ CONTAMINANTES_VALIDOS = ["co", "no", "no2", "nox"]
 @router.get("/resumen")
 def get_resumen(
     empresa_id: Optional[int] = Query(None),
+    sensor_id: Optional[int] = Query(None),  
     fecha_inicio: Optional[datetime] = Query(None),
     fecha_fin: Optional[datetime] = Query(None),
     current_user: Usuario = Depends(get_current_user),
@@ -33,10 +34,16 @@ def get_resumen(
     if current_user.rol != "SUPER_ADMIN":
         empresa_id = current_user.id_empresa
     
-    sensores_ids = db.query(Sensor.id)
+    #  Construir query de sensores con filtros
+    sensores_query = db.query(Sensor.id)
     if empresa_id:
-        sensores_ids = sensores_ids.join(Planta).filter(Planta.id_empresa == empresa_id)
-    sensores_ids = sensores_ids.subquery()
+        sensores_query = sensores_query.join(Planta).filter(Planta.id_empresa == empresa_id)
+    
+    #  Filtrar por sensor si se proporciona
+    if sensor_id:
+        sensores_query = sensores_query.filter(Sensor.id == sensor_id)
+    
+    sensores_ids = sensores_query.subquery().select()
     
     # ============================================
     # MÉTRICAS GENERALES
@@ -53,6 +60,8 @@ def get_resumen(
     query_sensores = db.query(Sensor).filter(Sensor.estado == "ACTIVO")
     if empresa_id:
         query_sensores = query_sensores.join(Planta).filter(Planta.id_empresa == empresa_id)
+    if sensor_id:
+        query_sensores = query_sensores.filter(Sensor.id == sensor_id)
     sensores_activos = query_sensores.count()
     
     # ============================================
@@ -146,6 +155,7 @@ def get_resumen(
 def get_tendencias(
     contaminante: str = Query(..., description="co, no, no2, nox"),
     empresa_id: Optional[int] = Query(None),
+    sensor_id: Optional[int] = Query(None),
     dias: int = Query(7, ge=1, le=90),
     current_user: Usuario = Depends(get_current_user),
     db: Session = Depends(get_db)
@@ -163,13 +173,33 @@ def get_tendencias(
     fecha_fin = datetime.now()
     fecha_inicio = fecha_fin - timedelta(days=dias)
     
+    # Verificar permisos
     if current_user.rol != "SUPER_ADMIN":
         empresa_id = current_user.id_empresa
     
-    sensores_ids = db.query(Sensor.id)
+    # Construir query de sensores
+    sensores_query = db.query(Sensor.id)
+    
+    # Filtrar por empresa
     if empresa_id:
-        sensores_ids = sensores_ids.join(Planta).filter(Planta.id_empresa == empresa_id)
-    sensores_ids = sensores_ids.subquery()
+        sensores_query = sensores_query.join(Planta).filter(Planta.id_empresa == empresa_id)
+    
+    # Filtrar por sensor específico si se proporciona
+    if sensor_id:
+        # Verificar que el sensor pertenece a la empresa
+        sensor_check = db.query(Sensor).filter(Sensor.id == sensor_id).first()
+        if not sensor_check:
+            raise HTTPException(status_code=404, detail="Sensor no encontrado")
+        
+        # Si el usuario no es SUPER_ADMIN, verificar que el sensor es de su empresa
+        if current_user.rol != "SUPER_ADMIN":
+            planta = db.query(Planta).filter(Planta.id == sensor_check.id_planta).first()
+            if not planta or planta.id_empresa != current_user.id_empresa:
+                raise HTTPException(status_code=403, detail="Sin permiso para este sensor")
+        
+        sensores_query = sensores_query.filter(Sensor.id == sensor_id)
+    
+    sensores_ids = sensores_query.subquery().select()
     
     # Obtener tendencias desde mediciones_contaminantes
     resultados = db.query(
@@ -192,9 +222,10 @@ def get_tendencias(
     return {
         "contaminante": contaminante,
         "dias": dias,
+        "sensor_id": sensor_id,
         "datos": [
             {
-                "fecha": r.fecha,
+                "fecha": str(r.fecha) if r.fecha else None,
                 "promedio": round(r.promedio, 2) if r.promedio else 0,
                 "maximo": round(r.maximo, 2) if r.maximo else 0,
                 "minimo": round(r.minimo, 2) if r.minimo else 0,
@@ -232,7 +263,7 @@ def get_comparativa(
     sensores_ids = db.query(Sensor.id)
     if empresa_id:
         sensores_ids = sensores_ids.join(Planta).filter(Planta.id_empresa == empresa_id)
-    sensores_ids = sensores_ids.subquery()
+    sensores_ids = sensores_ids.subquery().select()
     
     def obtener_promedio(fecha_inicio, fecha_fin):
         result = db.query(

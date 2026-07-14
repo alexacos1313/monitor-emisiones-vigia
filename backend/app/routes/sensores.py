@@ -1,24 +1,24 @@
-#backend/app/routes/sensores.py
+# backend/app/routes/sensores.py
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import datetime
 from database import get_db
-from models import Sensor, Planta, Empresa, Usuario, UmbralSensor
+from models import Sensor, Planta, Empresa, Usuario, UmbralSensor, Medicion, MedicionContaminante
 from schemas import (
-    SensorCreate, SensorResponse,
-    UmbralCreate, UmbralResponse
+    SensorCreate, SensorResponse, SensorUpdate,  # <--- AÑADIDO SensorUpdate
+    UmbralSensorCreate, UmbralSensorResponse
 )
 from auth import get_current_user, get_current_empresa_admin
 
 router = APIRouter(prefix="/sensores", tags=["Sensores"])
 
-# Lista de contaminantes válidos
 CONTAMINANTES_VALIDOS = ["CO", "NO", "NO2", "NOX"]
 
 @router.get("/", response_model=List[SensorResponse])
 def get_sensores(
     planta_id: Optional[int] = Query(None),
+    empresa_id: Optional[int] = Query(None),
     current_user: Usuario = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -28,8 +28,13 @@ def get_sensores(
     if planta_id:
         query = query.filter(Sensor.id_planta == planta_id)
     
+    if empresa_id:
+        plantas_ids = db.query(Planta.id).filter(Planta.id_empresa == empresa_id).subquery()
+        query = query.filter(Sensor.id_planta.in_(plantas_ids))
+    
     if current_user.rol != "SUPER_ADMIN":
-        query = query.join(Planta).filter(Planta.id_empresa == current_user.id_empresa)
+        plantas_ids = db.query(Planta.id).filter(Planta.id_empresa == current_user.id_empresa).subquery()
+        query = query.filter(Sensor.id_planta.in_(plantas_ids))
     
     return query.all()
 
@@ -73,12 +78,37 @@ def create_sensor(
         fabricante=sensor_data.fabricante,
         fecha_instalacion=sensor_data.fecha_instalacion or datetime.now(),
         frecuencia_medicion=sensor_data.frecuencia_medicion,
-        estado="ACTIVO"
+        estado="ACTIVO",
+        contaminantes=sensor_data.contaminantes  # <--- AÑADIDO
     )
     db.add(new_sensor)
     db.commit()
     db.refresh(new_sensor)
     return new_sensor
+
+@router.put("/{sensor_id}", response_model=SensorResponse)
+def update_sensor(
+    sensor_id: int,
+    sensor_data: SensorUpdate,
+    current_user: Usuario = Depends(get_current_empresa_admin),
+    db: Session = Depends(get_db)
+):
+    """Actualizar un sensor"""
+    sensor = db.query(Sensor).filter(Sensor.id == sensor_id).first()
+    if not sensor:
+        raise HTTPException(status_code=404, detail="Sensor no encontrado")
+    
+    if current_user.rol != "SUPER_ADMIN":
+        planta = db.query(Planta).filter(Planta.id == sensor.id_planta).first()
+        if planta.id_empresa != current_user.id_empresa:
+            raise HTTPException(status_code=403, detail="Sin permiso")
+    
+    for key, value in sensor_data.model_dump(exclude_unset=True).items():
+        setattr(sensor, key, value)
+    
+    db.commit()
+    db.refresh(sensor)
+    return sensor
 
 @router.put("/{sensor_id}/calibrar")
 def calibrar_sensor(
@@ -101,7 +131,7 @@ def calibrar_sensor(
     
     return {"message": "Calibracion registrada", "fecha": sensor.ultima_calibracion}
 
-@router.get("/{sensor_id}/umbrales", response_model=List[UmbralResponse])
+@router.get("/{sensor_id}/umbrales", response_model=List[UmbralSensorResponse])
 def get_umbrales_sensor(
     sensor_id: int,
     current_user: Usuario = Depends(get_current_user),
@@ -115,15 +145,14 @@ def get_umbrales_sensor(
     umbrales = db.query(UmbralSensor).filter(UmbralSensor.id_sensor == sensor_id).all()
     return umbrales
 
-@router.post("/{sensor_id}/umbrales", response_model=UmbralResponse)
+@router.post("/{sensor_id}/umbrales", response_model=UmbralSensorResponse)
 def create_umbral(
     sensor_id: int,
-    umbral_data: UmbralCreate,
+    umbral_data: UmbralSensorCreate,
     current_user: Usuario = Depends(get_current_empresa_admin),
     db: Session = Depends(get_db)
 ):
     """Crear umbral para un sensor"""
-    # Validar contaminante
     if umbral_data.contaminante not in CONTAMINANTES_VALIDOS:
         raise HTTPException(
             status_code=400, 
@@ -152,9 +181,41 @@ def create_umbral(
         contaminante=umbral_data.contaminante,
         limite_alerta=umbral_data.limite_alerta,
         limite_critico=umbral_data.limite_critico,
-        motivo=umbral_data.motivo
+        tiempo_ventana=umbral_data.tiempo_ventana,
+        motivo=umbral_data.motivo,
+        fecha_aplicacion=datetime.now()
     )
     db.add(new_umbral)
     db.commit()
     db.refresh(new_umbral)
     return new_umbral
+
+@router.get("/{sensor_id}/contaminantes")
+def get_contaminantes_sensor(
+    sensor_id: int,
+    current_user: Usuario = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Obtener los contaminantes que mide un sensor específico.
+    """
+    sensor = db.query(Sensor).filter(Sensor.id == sensor_id).first()
+    if not sensor:
+        raise HTTPException(status_code=404, detail="Sensor no encontrado")
+    
+    if current_user.rol != "SUPER_ADMIN":
+        planta = db.query(Planta).filter(Planta.id == sensor.id_planta).first()
+        if planta.id_empresa != current_user.id_empresa:
+            raise HTTPException(status_code=403, detail="Sin permiso para este sensor")
+    
+    contaminantes_db = db.query(MedicionContaminante.contaminante).distinct().join(
+        Medicion
+    ).filter(Medicion.id_sensor == sensor_id).all()
+    
+    if contaminantes_db:
+        return [c[0] for c in contaminantes_db]
+    
+    if sensor.contaminantes:
+        return sensor.contaminantes
+    
+    return ["CO", "NO", "NO2", "NOX"]

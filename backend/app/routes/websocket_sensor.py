@@ -1,16 +1,15 @@
-#backend/app/routes/websocket_sensor.py
+# backend/app/routes/websocket_sensor.py
 from fastapi import WebSocket, WebSocketDisconnect
 from datetime import datetime
 import json
 import logging
 from database import SessionLocal
-from models import Medicion, Sensor
+from models import Medicion, Sensor, MedicionContaminante
 from services.alarma_service import verificar_y_generar_alarmas
 from fastapi import APIRouter
+from websocket_manager import manager 
 
 router = APIRouter(tags=["WebSocket Sensor"])
-
-# Configurar logging
 logger = logging.getLogger(__name__)
 
 @router.websocket("/ws/sensor/{sensor_id}")
@@ -47,45 +46,70 @@ async def websocket_sensor(websocket: WebSocket, sensor_id: int):
             
             logger.info(f"Datos recibidos de sensor {sensor_id}: {datos}")
             
-            # Extraer valores (SOLO CO, NO, NO2, NOX)
-            co = datos.get("co")
-            no = datos.get("no")
-            no2 = datos.get("no2")
-            nox = datos.get("nox")
-            
-            # Validar que al menos un contaminante tenga valor
-            if co is None and no is None and no2 is None and nox is None:
-                await websocket.send_json({
-                    "status": "error", 
-                    "mensaje": "Debe enviar al menos un contaminante (co, no, no2, nox)"
-                })
-                continue
-            
-            # Crear medición (SOLO CO, NO, NO2, NOX)
-            nueva = Medicion(
+            # Crear medición
+            nueva_medicion = Medicion(
                 id_sensor=sensor_id,
                 timestamp=datetime.now(),
-                co=co,
-                no=no,
-                no2=no2,
-                nox=nox,
+                temperatura=datos.get("temperatura"),
+                flujo=datos.get("flujo"),
+                oxigeno=datos.get("oxigeno"),
                 estado="VALIDADO"
             )
-            db.add(nueva)
+            db.add(nueva_medicion)
+            db.flush()  # Para obtener el ID
+            
+            # Guardar contaminantes (CO, NO, NO2, NOX)
+            contaminantes_objetos = []  # Para guardar los objetos
+            contaminantes_guardados = []  #  Para los logs
+            for cont in ['co', 'no', 'no2', 'nox']:
+                valor = datos.get(cont)
+                if valor is not None:
+                    cont_upper = cont.upper()
+                    mc = MedicionContaminante(
+                        id_medicion=nueva_medicion.id,
+                        contaminante=cont_upper,
+                        valor=float(valor)
+                    )
+                    db.add(mc)
+                    contaminantes_objetos.append(mc) 
+                    contaminantes_guardados.append(f"{cont_upper}={valor}")
+            
             db.commit()
-            db.refresh(nueva)
+            db.refresh(nueva_medicion)
+            
+            logger.info(f"Medición {nueva_medicion.id} guardada con contaminantes: {', '.join(contaminantes_guardados)}")
+            
+            #  ENVIAR MEDICIÓN POR WEBSOCKET usando los objetos
+            try:
+                mensaje_medicion = {
+                    "tipo": "nueva_medicion",
+                    "data": {
+                        "id": nueva_medicion.id,
+                        "id_sensor": nueva_medicion.id_sensor,
+                        "sensor": sensor.nombre,
+                        "timestamp": nueva_medicion.timestamp.isoformat(),
+                        "contaminantes": {
+                            mc.contaminante: mc.valor for mc in contaminantes_objetos 
+                        }
+                    }
+                }
+                # Enviar a todos los usuarios conectados
+                await manager.broadcast_to_all(mensaje_medicion)
+                logger.info(f"Medición {nueva_medicion.id} enviada por WebSocket")
+            except Exception as e:
+                logger.error(f"Error enviando medición por WebSocket: {e}")
             
             # Generar alarmas si es necesario
             try:
-                await verificar_y_generar_alarmas(db, nueva.id)
+                await verificar_y_generar_alarmas(db, nueva_medicion.id)
             except Exception as e:
                 logger.error(f"Error generando alarmas para sensor {sensor_id}: {e}")
             
             # Confirmar recepción
             await websocket.send_json({
                 "status": "ok",
-                "medicion_id": nueva.id,
-                "timestamp": nueva.timestamp.isoformat()
+                "medicion_id": nueva_medicion.id,
+                "timestamp": nueva_medicion.timestamp.isoformat()
             })
             
     except WebSocketDisconnect:

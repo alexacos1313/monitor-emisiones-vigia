@@ -1,4 +1,4 @@
-#backend/app/routes/websocket_alerts.py
+# backend/app/routes/websocket_alerts.py
 from fastapi import WebSocket, WebSocketDisconnect
 import jwt
 import os
@@ -8,14 +8,12 @@ from models import Usuario
 from websocket_manager import manager
 from fastapi import APIRouter
 
-# Obtener clave secreta de variables de entorno
-SECRET_KEY = os.getenv("SECRET_KEY", "tu-clave-secreta-cambiarla-en-produccion")
+SECRET_KEY = os.getenv("SECRET_KEY", "mi-clave-secreta-cambiar-en-produccion-12345")
 ALGORITHM = "HS256"
 
 router = APIRouter(tags=["WebSocket Alertas"])
 
 async def get_user_from_token(token: str):
-    """Obtener usuario a partir del token JWT"""
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         email = payload.get("sub")
@@ -35,26 +33,28 @@ async def get_user_from_token(token: str):
     except jwt.ExpiredSignatureError:
         print("Token expirado")
         return None
-    except jwt.InvalidTokenError:
-        print("Token inválido")
+    except jwt.InvalidTokenError as e:
+        print(f"Token invalido: {e}")
         return None
     except Exception as e:
-        print(f"Error al obtener usuario del token: {e}")
+        print(f"Error: {e}")
         return None
 
 @router.websocket("/ws/alerts/{token}")
 async def websocket_alerts(websocket: WebSocket, token: str):
-    """Frontend se conecta aquí para recibir alertas en tiempo real"""
+    print("WebSocket intentando conectar...")
     
     user = await get_user_from_token(token)
     if not user:
+        print("Autenticacion fallida")
         await websocket.close(code=1008, reason="Autenticacion fallida")
         return
     
-    # Conectar al WebSocket
+    print(f"Usuario {user.id} ({user.nombre}) autenticado")
+    await websocket.accept()
+    
     await manager.connect(user.id, websocket)
     
-    # Enviar mensaje de confirmación
     await manager.send_personal_message(user.id, {
         "tipo": "conexion",
         "mensaje": f"Conectado a alertas como {user.nombre}",
@@ -62,34 +62,23 @@ async def websocket_alerts(websocket: WebSocket, token: str):
         "rol": user.rol
     })
     
-    print(f"Usuario {user.id} ({user.nombre}) conectado a WebSocket")
+    print(f"Usuario {user.id} conectado a WebSocket")
     
     try:
         while True:
-            # Esperar mensajes del cliente
             data = await websocket.receive_text()
-            print(f"Mensaje de usuario {user.id}: {data}")
+            print(f"Mensaje: {data}")
             
             try:
                 mensaje = json.loads(data)
-                
-                # Responder a pings
                 if mensaje.get("tipo") == "ping":
                     await manager.send_personal_message(user.id, {
                         "tipo": "pong",
-                        "mensaje": "Conexión activa"
+                        "mensaje": "Conexion activa"
                     })
-                    
             except json.JSONDecodeError:
-                print(f"Mensaje no válido de usuario {user.id}: {data}")
+                print(f"Mensaje no valido: {data}")
                 
     except WebSocketDisconnect:
         manager.disconnect(user.id, websocket)
-        print(f"Usuario {user.id} ({user.nombre}) desconectado de WebSocket")
-    except Exception as e:
-        print(f"Error en WebSocket del usuario {user.id}: {e}")
-        try:
-            await websocket.close(code=1011, reason="Error interno")
-        except:
-            pass
-        manager.disconnect(user.id, websocket)
+        print(f"Usuario {user.id} desconectado")

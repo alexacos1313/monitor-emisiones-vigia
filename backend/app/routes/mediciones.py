@@ -81,6 +81,38 @@ def get_estadisticas(
     
     return result
 
+@router.get("/sensor/{sensor_id}/validar")
+def validar_mediciones_sensor(
+    sensor_id: int,
+    db: Session = Depends(get_db)
+):
+    """
+    Verificar el estado de las mediciones de un sensor.
+    """
+    total = db.query(Medicion).filter(Medicion.id_sensor == sensor_id).count()
+    
+    con_datos = db.query(Medicion).filter(
+        Medicion.id_sensor == sensor_id,
+        Medicion.contaminantes_rel.any()
+    ).count()
+    
+    sin_datos = total - con_datos
+    
+    # Obtener contaminantes disponibles
+    contaminantes = db.query(MedicionContaminante.contaminante).distinct().join(
+        Medicion
+    ).filter(Medicion.id_sensor == sensor_id).all()
+    contaminantes_lista = [c[0] for c in contaminantes]
+    
+    return {
+        "sensor_id": sensor_id,
+        "total_mediciones": total,
+        "con_datos": con_datos,
+        "sin_datos": sin_datos,
+        "contaminantes_disponibles": contaminantes_lista,
+        "tiene_datos": con_datos > 0
+    }
+
 @router.post("/", response_model=MedicionResponse)
 async def create_medicion(
     medicion_data: MedicionCreate,
@@ -139,3 +171,82 @@ async def create_medicion(
         "estado": nueva.estado,
         "procesada_ia": 0
     }
+
+@router.delete("/limpiar/sensor/{sensor_id}")
+def limpiar_mediciones_sin_datos(
+    sensor_id: int,
+    db: Session = Depends(get_db)
+):
+    """
+    Eliminar mediciones de un sensor que no tienen datos de contaminantes.
+    Útil para limpiar mediciones vacías.
+    """
+    # Buscar mediciones sin contaminantes
+    mediciones_sin_datos = db.query(Medicion).filter(
+        Medicion.id_sensor == sensor_id,
+        ~Medicion.contaminantes_rel.any()  # No tiene contaminantes asociados
+    ).all()
+    
+    ids_eliminados = [m.id for m in mediciones_sin_datos]
+    
+    # Eliminar
+    for m in mediciones_sin_datos:
+        db.delete(m)
+    
+    db.commit()
+    
+    return {
+        "mensaje": f"Se eliminaron {len(ids_eliminados)} mediciones sin datos",
+        "ids_eliminados": ids_eliminados,
+        "total_eliminados": len(ids_eliminados)
+    }
+
+@router.delete("/sensor/{sensor_id}")
+def eliminar_todas_mediciones_sensor(
+    sensor_id: int,
+    db: Session = Depends(get_db)
+):
+    """
+    Eliminar TODAS las mediciones de un sensor (cuidado).
+    """
+    # Verificar que el sensor existe
+    sensor = db.query(Sensor).filter(Sensor.id == sensor_id).first()
+    if not sensor:
+        raise HTTPException(status_code=404, detail="Sensor no encontrado")
+    
+    # Contar antes de eliminar
+    total = db.query(Medicion).filter(Medicion.id_sensor == sensor_id).count()
+    
+    # Eliminar
+    db.query(Medicion).filter(Medicion.id_sensor == sensor_id).delete()
+    db.commit()
+    
+    return {
+        "mensaje": f"Se eliminaron {total} mediciones del sensor {sensor_id}",
+        "sensor_id": sensor_id,
+        "total_eliminados": total
+    }
+
+@router.delete("/limpiar/todas")
+def limpiar_todas_mediciones_sin_datos(
+    db: Session = Depends(get_db)
+):
+    """
+    Eliminar TODAS las mediciones sin datos de contaminantes de todos los sensores.
+    """
+    mediciones_sin_datos = db.query(Medicion).filter(
+        ~Medicion.contaminantes_rel.any()
+    ).all()
+    
+    ids_eliminados = [m.id for m in mediciones_sin_datos]
+    
+    for m in mediciones_sin_datos:
+        db.delete(m)
+    
+    db.commit()
+    
+    return {
+        "mensaje": f"Se eliminaron {len(ids_eliminados)} mediciones sin datos",
+        "total_eliminados": len(ids_eliminados)
+    }
+

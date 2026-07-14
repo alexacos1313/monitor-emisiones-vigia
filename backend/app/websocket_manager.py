@@ -1,4 +1,4 @@
-#backend/app/websocket_manager.py
+# backend/app/websocket_manager.py
 from fastapi import WebSocket
 from typing import Dict, List
 
@@ -7,11 +7,10 @@ class ConnectionManager:
         self.active_connections: Dict[int, List[WebSocket]] = {}
     
     async def connect(self, user_id: int, websocket: WebSocket):
-        await websocket.accept()
         if user_id not in self.active_connections:
             self.active_connections[user_id] = []
         self.active_connections[user_id].append(websocket)
-        print(f"Usuario {user_id} conectado")
+        print(f"Usuario {user_id} conectado al manager")
     
     def disconnect(self, user_id: int, websocket: WebSocket):
         if user_id in self.active_connections:
@@ -19,7 +18,7 @@ class ConnectionManager:
                 self.active_connections[user_id].remove(websocket)
             if not self.active_connections[user_id]:
                 del self.active_connections[user_id]
-        print(f"Usuario {user_id} desconectado")
+        print(f"Usuario {user_id} desconectado del manager")
     
     async def send_personal_message(self, user_id: int, message: dict):
         if user_id in self.active_connections:
@@ -39,7 +38,10 @@ class ConnectionManager:
             await self.send_personal_message(usuario.id, message)
     
     async def broadcast_to_all(self, message: dict):
+        """Enviar mensaje a todos los usuarios conectados"""
+        print(f" Enviando a {len(self.active_connections)} usuarios conectados")
         for user_id in self.active_connections:
+            print(f"  → Usuario {user_id}")
             await self.send_personal_message(user_id, message)
     
     def count_active(self) -> int:
