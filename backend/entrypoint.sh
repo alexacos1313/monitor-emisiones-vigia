@@ -3,7 +3,7 @@ set -e
 
 # Solo crear la base de datos si NO existe
 if [ ! -f /app/data/emisiones.db ]; then
-    echo "🚀 Primera vez: creando base de datos..."
+    echo " Primera vez: creando base de datos..."
     python /app/scripts/init_db.py
     echo " Base de datos creada"
 else
