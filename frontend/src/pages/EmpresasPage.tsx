@@ -48,12 +48,21 @@ export default function EmpresasPage() {
   };
 
   const seleccionarEmpresa = (empresa: Empresa) => {
+    console.log(' === SELECCIONANDO EMPRESA ===');
+    console.log(' Empresa:', empresa);
+    console.log(' ID:', empresa.id);
+    console.log(' Activo:', empresa.activo);
+
     if (empresa.activo === 0) {
       showError('Esta empresa está inactiva y no se puede acceder');
       return;
     }
     localStorage.setItem('empresa_seleccionada_id', String(empresa.id));
     localStorage.setItem('empresa_seleccionada', JSON.stringify(empresa));
+
+   console.log(' Guardado en localStorage:');
+   console.log('  - empresa_seleccionada_id:', localStorage.getItem('empresa_seleccionada_id'));
+   console.log('  - empresa_seleccionada:', localStorage.getItem('empresa_seleccionada'));
     navigate('/dashboard');
   };
 

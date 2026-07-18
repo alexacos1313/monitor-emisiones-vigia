@@ -31,6 +31,7 @@ export default function Sidebar({ isOpen }: { isOpen: boolean }) {
     if (user?.rol === 'SUPER_ADMIN' && empresaId) {
       return [
         { path: '/dashboard', name: 'Dashboard', icon: 'bi-speedometer2' },
+        { path: '/mi-empresa', name: 'Mi Empresa', icon: 'bi-building' },
         { path: '/mediciones', name: 'Mediciones', icon: 'bi-graph-up' },
         { path: '/alarmas', name: 'Alarmas', icon: 'bi-bell' },
         { path: '/sensores', name: 'Sensores', icon: 'bi-cpu' },
@@ -45,9 +46,9 @@ export default function Sidebar({ isOpen }: { isOpen: boolean }) {
     if (user?.rol === 'EMPRESA_ADMIN') {
       return [
         { path: '/dashboard', name: 'Dashboard', icon: 'bi-speedometer2' },
+        { path: '/mi-empresa', name: 'Mi Empresa', icon: 'bi-building' },
         { path: '/mediciones', name: 'Mediciones', icon: 'bi-graph-up' },
         { path: '/alarmas', name: 'Alarmas', icon: 'bi-bell' },
-        { path: '/mi-empresa', name: 'Mi Empresa', icon: 'bi-building' },
         { path: '/sensores', name: 'Sensores', icon: 'bi-cpu' },
         { path: '/usuarios', name: 'Usuarios', icon: 'bi-people' },
         { path: '/reportes', name: 'Reportes', icon: 'bi-file-text' },

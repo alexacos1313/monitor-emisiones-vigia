@@ -77,7 +77,7 @@ class EmpresaResponse(EmpresaBase):
 # MODELOS DE UBICACIONES
 # =====================================================
 
-class UbicacionBase(BaseModel):
+class UbicacionBase(BaseModel): 
     provincia: str
     municipio: str
     distrito: Optional[str] = None
@@ -117,6 +117,15 @@ class PlantaResponse(PlantaBase):
     empresa_nombre: Optional[str] = None
     
     model_config = ConfigDict(from_attributes=True)
+
+class PlantaUpdate(BaseModel):
+    nombre: Optional[str] = None
+    id_ubicacion: Optional[int] = None
+    direccion: Optional[str] = None
+    actividad: Optional[str] = None
+    autorizacion_ambiental: Optional[str] = None
+    fecha_autorizacion: Optional[datetime] = None
+    activo: Optional[int] = None  
 
 # =====================================================
 # MODELOS DE SENSOR

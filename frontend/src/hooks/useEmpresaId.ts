@@ -2,8 +2,12 @@
 export function useEmpresaId() {
   const user = JSON.parse(localStorage.getItem('user') || '{}');
   
+  // console.log(' useEmpresaId - user:', user);
+  // console.log(' useEmpresaId - user.id_empresa:', user.id_empresa);
+
   // Si el usuario tiene empresa (EMPRESA_ADMIN o TECNICO)
   if (user.id_empresa) {
+    // console.log(' useEmpresaId - retornando id_empresa del user:', user.id_empresa);
     return user.id_empresa;
   }
   

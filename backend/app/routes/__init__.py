@@ -7,7 +7,8 @@ from .mediciones import router as mediciones_router
 from .alarmas import router as alarmas_router       
 from .dashboard import router as dashboard_router
 from .reportes import router as reportes_router
-from .usuarios import router as usuarios_router  
+from .usuarios import router as usuarios_router
+from .ubicaciones import router as ubicaciones_router  
 from .websocket_sensor import router as websocket_sensor_router   
 from .websocket_alerts import router as websocket_alerts_router  
 from .ai import router as ai_router                              
@@ -22,7 +23,8 @@ __all__ = [
     "alarmas_router",  
     "dashboard_router",
     "reportes_router",
-    "usuarios_router",   
+    "usuarios_router",
+    "ubicaciones_router",   
     "websocket_sensor_router",
     "websocket_alerts_router",
     "ai_router",
