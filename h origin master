@@ -1,0 +1,14 @@
+* [33m73ff2ce[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmaster[m[33m)[m fix: Corrección en entrypoint y docker-compose para funcionamiento automático
+* [33md688cf1[m feat: Mi Empresa - Gestión de plantas y ubicaciones integradas
+* [33m66317b7[m[33m ([m[1;31morigin/master[m[33m, [m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m, [m[1;32mmain[m[33m)[m feat: Sistema VIGIA con Docker, WebSockets, alarmas en tiempo real, email, WhatsApp modificado y parte front login y dashboard funcionando con sistema de alarmar funcionando probado con el simulador de sensor
+* [33m3a76785[m feat: Backend VIGIA completo con todos los módulos funcionando
+* [33mbadb8f5[m feat: Añadir routers de mediciones, alarmas, dashboard, reportes y usuarios
+* [33mc2d29eb[m feat: Configurar entrypoint para inicialización automática de base de datos
+* [33me0839c7[m fix: Eliminar prefix duplicado en auth_router en main.py
+* [33me994d36[m feat: Añadir routers básicos y corregir configuración del backend
+* [33mf3334d2[m feat: Añadir scripts de inicialización de base de datos umbrales
+* [33m82da77e[m feat: Añadir scripts de inicialización de base de datos
+* [33mfd35abf[m Eliminado entrypoint, usando CMD directo en Dockerfile para crear BBDD
+* [33m1a9b247[m Añadido entrypoint para inicializar BBDD automáticamente en Docker
+* [33m2dbea02[m  Backend con BBDD
+* [33m563aacb[m Módulo 1: Configuración Docker y estructura base del proyecto

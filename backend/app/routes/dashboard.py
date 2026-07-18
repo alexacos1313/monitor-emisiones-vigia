@@ -8,7 +8,7 @@ from database import get_db
 from models import Medicion, Sensor, Planta, Empresa, Alarma, Usuario, MedicionContaminante
 from auth import get_current_user, get_current_super_admin
 
-router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
+router = APIRouter(prefix="/dashboard", tags=["Dashboard"], redirect_slashes=False)
 
 # Lista de contaminantes válidos
 CONTAMINANTES_VALIDOS = ["co", "no", "no2", "nox"]

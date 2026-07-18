@@ -49,7 +49,7 @@ class PlantaService extends BaseService {
     
     return this.handleRequest(
       [],
-      () => api.get('/plantas', { params }),
+      () => api.get('/plantas/', { params }),
       'Error cargando plantas'
     );
   }

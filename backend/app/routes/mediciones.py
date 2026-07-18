@@ -9,7 +9,7 @@ from database import get_db
 from models import Medicion, MedicionContaminante, Sensor
 from schemas import MedicionCreate, MedicionResponse
 
-router = APIRouter(prefix="/mediciones", tags=["Mediciones"])
+router = APIRouter(prefix="/mediciones", tags=["Mediciones"], redirect_slashes=False)
 
 @router.get("/", response_model=list[MedicionResponse])
 def get_mediciones(

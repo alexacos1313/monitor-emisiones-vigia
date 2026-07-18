@@ -34,7 +34,7 @@ class AlarmaService extends BaseService {
   async getAlarmas(params?: { sensor_id?: number; enviada?: number; tipo?: string }): Promise<Alarma[]> {
     return this.handleRequest(
       [],
-      () => api.get('/alarmas', { params }),
+      () => api.get('/alarmas/', { params }),
       'Error cargando alarmas'
     );
   }

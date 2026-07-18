@@ -9,7 +9,7 @@ from models import Empresa, Usuario
 from auth import get_current_user, get_current_empresa_admin
 from services.reporte_service import generar_reporte_emisiones
 
-router = APIRouter(prefix="/reportes", tags=["Reportes"])
+router = APIRouter(prefix="/reportes", tags=["Reportes"], redirect_slashes=False)
 
 @router.get("/emisiones")
 def generar_reporte(

@@ -42,3 +42,12 @@ export const showPending = (message: string) => {
     duration: 3000,
   });
 };
+
+//  Función showConfirm usando window.confirm (más simple y sin errores)
+export const showConfirm = (message: string, description?: string): Promise<boolean> => {
+  return new Promise((resolve) => {
+    const fullMessage = description ? `${message}\n\n${description}` : message;
+    const result = window.confirm(fullMessage);
+    resolve(result);
+  });
+};

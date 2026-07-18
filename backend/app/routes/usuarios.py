@@ -17,7 +17,7 @@ from auth import (
     check_user_has_empresa_access
 )
 
-router = APIRouter(prefix="/usuarios", tags=["Usuarios"])
+router = APIRouter(prefix="/usuarios", tags=["Usuarios"], redirect_slashes=False)
 
 @router.get("/", response_model=List[UsuarioResponse])
 def get_usuarios(

@@ -79,7 +79,7 @@ class EmpresaService extends BaseService {
     }
     return this.handleRequest(
       filtradas,
-      () => api.get('/empresas', { params: { activas } }),
+      () => api.get('/empresas/', { params: { activas } }),
       'Error cargando empresas'
     );
   }

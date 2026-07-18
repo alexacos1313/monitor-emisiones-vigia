@@ -294,3 +294,40 @@ class DashboardResponse(BaseModel):
     metricas: DashboardMetricas
     graficos: List[DashboardGrafico]
     ultimas_alarmas: List[AlarmaResponse]
+
+# =====================================================
+# MODELOS DE ZONAS NORMATIVAS
+# =====================================================
+
+class ZonaNormativaBase(BaseModel):
+    nombre: str
+    descripcion: Optional[str] = None
+    comunidad_autonoma: str
+    provincia: str
+    municipio: Optional[str] = None
+    nivel_proteccion: int = 3
+    normativa_aplicable: Optional[str] = None
+
+class ZonaNormativaResponse(ZonaNormativaBase):
+    id: int
+    
+    model_config = ConfigDict(from_attributes=True)
+
+# =====================================================
+# MODELOS DE UMBRALES NORMATIVOS
+# =====================================================
+
+class UmbralNormativoBase(BaseModel):
+    zona_normativa_id: int
+    contaminante: str
+    limite_alerta: float
+    limite_critico: float
+    unidad: str = "mg/m³"
+    referencia_legal: Optional[str] = None
+    fecha_aprobacion: Optional[datetime] = None
+
+class UmbralNormativoResponse(UmbralNormativoBase):
+    id: int
+    zona_nombre: Optional[str] = None
+    
+    model_config = ConfigDict(from_attributes=True)

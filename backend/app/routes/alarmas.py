@@ -9,7 +9,7 @@ from models import Alarma, Medicion, Sensor, Planta, Usuario
 from schemas import AlarmaResponse, ConfirmarAlarma
 from auth import get_current_user, get_current_empresa_admin, get_current_super_admin
 
-router = APIRouter(prefix="/alarmas", tags=["Alarmas"])
+router = APIRouter(prefix="/alarmas", tags=["Alarmas"], redirect_slashes=False)
 
 @router.get("/", response_model=List[AlarmaResponse])
 def get_alarmas(

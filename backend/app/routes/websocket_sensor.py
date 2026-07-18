@@ -9,7 +9,7 @@ from services.alarma_service import verificar_y_generar_alarmas
 from fastapi import APIRouter
 from websocket_manager import manager 
 
-router = APIRouter(tags=["WebSocket Sensor"])
+router = APIRouter(tags=["WebSocket Sensor"], redirect_slashes=False)
 logger = logging.getLogger(__name__)
 
 @router.websocket("/ws/sensor/{sensor_id}")

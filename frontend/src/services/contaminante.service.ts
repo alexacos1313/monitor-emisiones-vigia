@@ -25,7 +25,7 @@ class ContaminanteService extends BaseService {
 
   async getContaminantes(): Promise<Contaminante[]> {
     try {
-      const response = await api.get('/contaminantes');
+      const response = await api.get('/contaminantes/');
       const data = response.data;
       
       //  Si el backend devuelve un array de strings, convertirlos a Contaminante[]

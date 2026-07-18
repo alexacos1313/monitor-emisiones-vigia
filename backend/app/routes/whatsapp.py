@@ -6,7 +6,7 @@ from auth import get_current_user
 from models import Usuario
 from schemas import WhatsAppRequest  # ← Importar desde schemas
 
-router = APIRouter(prefix="/whatsapp", tags=["WhatsApp"])
+router = APIRouter(prefix="/whatsapp", tags=["WhatsApp"], redirect_slashes=False)
 
 @router.post("/test")
 async def test_whatsapp(

@@ -4,7 +4,6 @@ import api from './api';
 
 export interface Ubicacion {
   id: number;
-  id_empresa: number;
   provincia: string;
   municipio: string;
   distrito?: string;
@@ -15,7 +14,6 @@ export interface Ubicacion {
 }
 
 export interface UbicacionCreate {
-  id_empresa: number;
   provincia: string;
   municipio: string;
   distrito?: string;
@@ -37,7 +35,7 @@ class UbicacionService extends BaseService {
     }
     return this.handleRequest(
       [],
-      () => api.get('/ubicaciones', { params }),
+      () => api.get('/ubicaciones/', { params }),
       'Error cargando ubicaciones'
     );
   }
@@ -53,7 +51,7 @@ class UbicacionService extends BaseService {
   async createUbicacion(data: UbicacionCreate): Promise<Ubicacion> {
     return this.handleRequest(
       {} as Ubicacion,
-      () => api.post('/ubicaciones', data),
+      () => api.post('/ubicaciones/', data),
       'Error creando ubicación'
     );
   }

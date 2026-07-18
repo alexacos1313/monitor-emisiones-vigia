@@ -11,7 +11,7 @@ from fastapi import APIRouter
 SECRET_KEY = os.getenv("SECRET_KEY", "mi-clave-secreta-cambiar-en-produccion-12345")
 ALGORITHM = "HS256"
 
-router = APIRouter(tags=["WebSocket Alertas"])
+router = APIRouter(tags=["WebSocket Alertas"], redirect_slashes=False)
 
 async def get_user_from_token(token: str):
     try:

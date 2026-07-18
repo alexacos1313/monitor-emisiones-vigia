@@ -8,7 +8,7 @@ from schemas import EmpresaBase, EmpresaCreate, EmpresaResponse
 from auth import get_current_user 
 from models import Usuario  
 
-router = APIRouter(prefix="/empresas", tags=["Empresas"])
+router = APIRouter(prefix="/empresas", tags=["Empresas"], redirect_slashes=False)
 
 # ============================================
 # LISTAR EMPRESAS

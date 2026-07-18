@@ -95,7 +95,7 @@ export default function Dashboard() {
   // Escuchar alarmas en tiempo real
   useEffect(() => {
     const unsubscribe = websocketService.onAlarma((alarma) => {
-      console.log('🚨 Alarma en tiempo real:', alarma);
+      console.log(' Alarma en tiempo real:', alarma);
       if (sensorSeleccionado) {
         recargarEstadisticas(sensorSeleccionado);
         recargarResumen(sensorSeleccionado);
@@ -105,10 +105,10 @@ export default function Dashboard() {
     return () => unsubscribe();
   }, [sensorSeleccionado]);
 
-  // ✅ Escuchar nuevas mediciones en tiempo real
+  //  Escuchar nuevas mediciones en tiempo real
   useEffect(() => {
     const unsubscribe = websocketService.onMedicion((medicion) => {
-      console.log('📊 Nueva medición en tiempo real:', medicion);
+      console.log(' Nueva medición en tiempo real:', medicion);
       if (sensorSeleccionado && medicion.id_sensor === sensorSeleccionado) {
         recargarResumen(sensorSeleccionado);
         recargarTendencias();
@@ -118,12 +118,12 @@ export default function Dashboard() {
     return () => unsubscribe();
   }, [sensorSeleccionado]);
 
-  // ✅ Recarga periódica cada 30 segundos (respaldo)
+  //  Recarga periódica cada 30 segundos (respaldo)
   useEffect(() => {
     if (!sensorSeleccionado || isFirstLoad) return;
     
     const interval = setInterval(() => {
-      console.log('🔄 Actualización automática (30s)');
+      console.log(' Actualización automática (30s)');
       recargarResumen(sensorSeleccionado);
       recargarEstadisticas(sensorSeleccionado);
     }, 30000);

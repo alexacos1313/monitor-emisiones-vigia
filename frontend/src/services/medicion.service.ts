@@ -144,7 +144,7 @@ class MedicionService extends BaseService {
     
     return this.handleRequest(
       filtradas,
-      () => api.get('/mediciones', { params: filtros }),
+      () => api.get('/mediciones/', { params: filtros }),
       'Error cargando mediciones'
     );
   }

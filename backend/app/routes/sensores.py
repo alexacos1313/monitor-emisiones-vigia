@@ -11,7 +11,7 @@ from schemas import (
 )
 from auth import get_current_user, get_current_empresa_admin
 
-router = APIRouter(prefix="/sensores", tags=["Sensores"])
+router = APIRouter(prefix="/sensores", tags=["Sensores"], redirect_slashes=False)
 
 CONTAMINANTES_VALIDOS = ["CO", "NO", "NO2", "NOX"]
 

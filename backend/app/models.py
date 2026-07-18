@@ -1,4 +1,4 @@
-# backend/app/model.py
+# backend/app/models.py
 from __future__ import annotations
 
 from sqlalchemy import Column, Integer, String, Float, DateTime, Boolean, ForeignKey, Text, JSON
@@ -22,6 +22,11 @@ class ZonaNormativa(Base):
     nivel_proteccion = Column(Integer, default=3)
     normativa_aplicable = Column(String)
 
+    #  Relaciones corregidas
+    ubicaciones = relationship("Ubicacion", back_populates="zona_normativa")
+    umbrales = relationship("UmbralNormativo", back_populates="zona_normativa")
+
+
 class Ubicacion(Base):
     __tablename__ = "ubicaciones"
     
@@ -34,7 +39,10 @@ class Ubicacion(Base):
     longitud = Column(Float)
     zona_normativa_id = Column(Integer, ForeignKey("zonas_normativas.id"))
     
-    zona_normativa = relationship("ZonaNormativa")
+    #  Relaciones corregidas
+    zona_normativa = relationship("ZonaNormativa", back_populates="ubicaciones")
+    plantas = relationship("Planta", back_populates="ubicacion")
+
 
 # =====================================================
 # TABLAS DE EMPRESAS Y PLANTAS
@@ -55,6 +63,7 @@ class Empresa(Base):
     plantas = relationship("Planta", back_populates="empresa")
     usuarios = relationship("Usuario", back_populates="empresa")
 
+
 class Planta(Base):
     __tablename__ = "plantas"
     
@@ -69,9 +78,11 @@ class Planta(Base):
     fecha_alta = Column(DateTime, default=datetime.now)
     activo = Column(Integer, default=1)
     
+    #  Relaciones corregidas
     empresa = relationship("Empresa", back_populates="plantas")
-    ubicacion = relationship("Ubicacion")
+    ubicacion = relationship("Ubicacion", back_populates="plantas")
     sensores = relationship("Sensor", back_populates="planta")
+
 
 # =====================================================
 # SENSORES Y ANALIZADORES
@@ -97,6 +108,7 @@ class Sensor(Base):
     umbrales = relationship("UmbralSensor", back_populates="sensor")
     mantenimientos = relationship("MantenimientoSensor", back_populates="sensor")
 
+
 # =====================================================
 # UMBRALES
 # =====================================================
@@ -114,7 +126,8 @@ class UmbralNormativo(Base):
     referencia_legal = Column(String)
     fecha_aprobacion = Column(DateTime)
     
-    zona_normativa = relationship("ZonaNormativa")
+    zona_normativa = relationship("ZonaNormativa", back_populates="umbrales")
+
 
 class UmbralSensor(Base):
     __tablename__ = "umbrales_sensor"
@@ -129,6 +142,7 @@ class UmbralSensor(Base):
     fecha_aplicacion = Column(DateTime, default=datetime.now)
     
     sensor = relationship("Sensor", back_populates="umbrales")
+
 
 # =====================================================
 # MEDICIONES (VERSIÓN DINÁMICA - TABLA NORMALIZADA)
@@ -150,6 +164,7 @@ class Medicion(Base):
     contaminantes_rel = relationship("MedicionContaminante", back_populates="medicion", cascade="all, delete-orphan")
     alarmas = relationship("Alarma", back_populates="medicion")
 
+
 class MedicionContaminante(Base):
     __tablename__ = "mediciones_contaminantes"
     
@@ -159,6 +174,7 @@ class MedicionContaminante(Base):
     valor = Column(Float, nullable=False)
     
     medicion = relationship("Medicion", back_populates="contaminantes_rel")
+
 
 # =====================================================
 # ALARMAS
@@ -185,6 +201,7 @@ class Alarma(Base):
     sensor = relationship("Sensor")
     confirmador = relationship("Usuario", foreign_keys=[confirmada_por])
 
+
 # =====================================================
 # USUARIOS
 # =====================================================
@@ -207,6 +224,7 @@ class Usuario(Base):
     empresa = relationship("Empresa", back_populates="usuarios")
     creador = relationship("Usuario", remote_side=[id])
 
+
 # =====================================================
 # LOGS Y MANTENIMIENTO
 # =====================================================
@@ -221,6 +239,7 @@ class LogSistema(Base):
     mensaje = Column(Text)
     usuario_id = Column(Integer, ForeignKey("usuarios.id"))
 
+
 class MantenimientoSensor(Base):
     __tablename__ = "mantenimiento_sensores"
     
@@ -233,6 +252,7 @@ class MantenimientoSensor(Base):
     proxima_calibracion = Column(DateTime)
     
     sensor = relationship("Sensor", back_populates="mantenimientos")
+
 
 class HistorialUmbral(Base):
     __tablename__ = "historial_umbrales"

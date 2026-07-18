@@ -118,7 +118,7 @@ class SensorService extends BaseService {
       if (planta_id) params.planta_id = planta_id;
       if (empresa_id) params.empresa_id = empresa_id;
       
-      const response = await api.get('/sensores', { params });
+      const response = await api.get('/sensores/', { params });
       const data = response.data || [];
       
       const sensoresConPlanta = await Promise.all(data.map(async (sensor: Sensor) => {

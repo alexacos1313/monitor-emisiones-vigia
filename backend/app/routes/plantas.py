@@ -7,7 +7,7 @@ from models import Planta, Sensor, Usuario
 from schemas import PlantaBase, PlantaCreate, PlantaResponse, PlantaUpdate, SensorResponse  
 from auth import get_current_user  
 
-router = APIRouter(prefix="/plantas", tags=["Plantas"])
+router = APIRouter(prefix="/plantas", tags=["Plantas"], redirect_slashes=False)
 
 # ============================================
 # LISTAR PLANTAS

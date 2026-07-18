@@ -8,6 +8,7 @@ import PaginatedTable from '../components/ui/PaginatedTable';
 import { empresaService, Empresa } from '../services/empresa.service';
 import { plantaService, Planta } from '../services/planta.service';
 import { ubicacionService, Ubicacion } from '../services/ubicacion.service';
+import { umbralNormativoService } from '../services/umbralNormativo.service';
 import { useEmpresaId } from '../hooks/useEmpresaId';
 import toast from 'react-hot-toast';
 import Breadcrumbs from '../components/ui/Breadcrumbs';
@@ -16,6 +17,7 @@ export default function MiEmpresaPage() {
   const [empresa, setEmpresa] = useState<Empresa | null>(null);
   const [plantas, setPlantas] = useState<Planta[]>([]);
   const [ubicaciones, setUbicaciones] = useState<Ubicacion[]>([]);
+  const [zonasNormativas, setZonasNormativas] = useState<{ zona_normativa_id: number; zona_nombre: string }[]>([]);
   const [loading, setLoading] = useState(true);
   
   // Modales
@@ -34,18 +36,17 @@ export default function MiEmpresaPage() {
     email: ''
   });
   
-  //  Formulario de planta con campos de ubicación integrados
   const [plantaForm, setPlantaForm] = useState({
     nombre: '',
     direccion: '',
     actividad: '',
-    // Campos de ubicación
     provincia: '',
     municipio: '',
     distrito: '',
     codigo_postal: '',
     latitud: '',
-    longitud: ''
+    longitud: '',
+    zona_normativa_id: ''  
   });
   
   const [ubicacionForm, setUbicacionForm] = useState({
@@ -54,7 +55,8 @@ export default function MiEmpresaPage() {
     distrito: '',
     codigo_postal: '',
     latitud: '',
-    longitud: ''
+    longitud: '',
+    zona_normativa_id: ''
   });
 
   const empresaId = useEmpresaId();
@@ -81,12 +83,27 @@ export default function MiEmpresaPage() {
           });
         }
         
-        const [plantasData, ubicacionesData] = await Promise.all([
+        const [plantasData, ubicacionesData, umbralesData] = await Promise.all([
           plantaService.getPlantas(empresaId),
-          ubicacionService.getUbicaciones(empresaId)
+          ubicacionService.getUbicaciones(empresaId),
+          umbralNormativoService.getUmbralesNormativos()
         ]);
+        
         setPlantas(plantasData);
         setUbicaciones(ubicacionesData);
+        
+        // Extraer zonas únicas de los umbrales
+        const zonasUnicas = umbralesData.reduce((acc, u) => {
+          if (!acc.find(z => z.zona_normativa_id === u.zona_normativa_id)) {
+            acc.push({
+              zona_normativa_id: u.zona_normativa_id,
+              zona_nombre: u.zona_nombre || `Zona ${u.zona_normativa_id}`
+            });
+          }
+          return acc;
+        }, [] as { zona_normativa_id: number; zona_nombre: string }[]);
+        
+        setZonasNormativas(zonasUnicas);
       } else {
         toast.error('No se encontró empresa seleccionada');
       }
@@ -131,13 +148,15 @@ export default function MiEmpresaPage() {
     }
   };
 
-  //  Al abrir el modal de edición, cargar los datos de la ubicación
   const handleOpenPlantaModal = async (planta?: Planta) => {
     if (planta) {
       setEditingPlanta(planta);
       
-      //  Buscar la ubicación de la planta
-      let ubicacionData = { provincia: '', municipio: '', distrito: '', codigo_postal: '', latitud: '', longitud: '' };
+      let ubicacionData = { 
+        provincia: '', municipio: '', distrito: '', 
+        codigo_postal: '', latitud: '', longitud: '',
+        zona_normativa_id: ''  
+      };
       
       if (planta.id_ubicacion) {
         const ubicacion = ubicaciones.find(u => u.id === planta.id_ubicacion);
@@ -148,7 +167,8 @@ export default function MiEmpresaPage() {
             distrito: ubicacion.distrito || '',
             codigo_postal: ubicacion.codigo_postal || '',
             latitud: ubicacion.latitud?.toString() || '',
-            longitud: ubicacion.longitud?.toString() || ''
+            longitud: ubicacion.longitud?.toString() || '',
+            zona_normativa_id: ubicacion.zona_normativa_id?.toString() || ''  
           };
         }
       }
@@ -162,7 +182,8 @@ export default function MiEmpresaPage() {
         distrito: ubicacionData.distrito,
         codigo_postal: ubicacionData.codigo_postal,
         latitud: ubicacionData.latitud,
-        longitud: ubicacionData.longitud
+        longitud: ubicacionData.longitud,
+        zona_normativa_id: ubicacionData.zona_normativa_id  
       });
     } else {
       setEditingPlanta(null);
@@ -175,13 +196,13 @@ export default function MiEmpresaPage() {
         distrito: '',
         codigo_postal: '',
         latitud: '',
-        longitud: ''
+        longitud: '',
+        zona_normativa_id: '' 
       });
     }
     setShowPlantaModal(true);
   };
 
-  //  Guardar planta (crea o actualiza ubicación)
   const handleSavePlanta = async () => {
     if (!empresa) return;
     if (!plantaForm.nombre) {
@@ -196,37 +217,23 @@ export default function MiEmpresaPage() {
     try {
       let ubicacionId = editingPlanta?.id_ubicacion || null;
       
-      //  Si estamos editando y tiene ubicación, actualizarla
+      const ubicacionData = {
+        provincia: plantaForm.provincia,
+        municipio: plantaForm.municipio,
+        distrito: plantaForm.distrito || '',
+        codigo_postal: plantaForm.codigo_postal || '',
+        latitud: plantaForm.latitud ? parseFloat(plantaForm.latitud) : undefined,
+        longitud: plantaForm.longitud ? parseFloat(plantaForm.longitud) : undefined,
+        zona_normativa_id: plantaForm.zona_normativa_id ? parseInt(plantaForm.zona_normativa_id) : undefined  
+      };
+      
       if (ubicacionId) {
-        // Buscar la ubicación existente
-        const ubicacionExistente = ubicaciones.find(u => u.id === ubicacionId);
-        if (ubicacionExistente) {
-          // Actualizar ubicación existente
-          const ubicacionData = {
-            provincia: plantaForm.provincia,
-            municipio: plantaForm.municipio,
-            distrito: plantaForm.distrito || '',
-            codigo_postal: plantaForm.codigo_postal || '',
-            latitud: plantaForm.latitud ? parseFloat(plantaForm.latitud) : undefined,
-            longitud: plantaForm.longitud ? parseFloat(plantaForm.longitud) : undefined
-          };
-          await ubicacionService.updateUbicacion(ubicacionId, ubicacionData);
-        }
+        await ubicacionService.updateUbicacion(ubicacionId, ubicacionData);
       } else {
-        //  Crear nueva ubicación
-        const ubicacionData = {
-          provincia: plantaForm.provincia,
-          municipio: plantaForm.municipio,
-          distrito: plantaForm.distrito || '',
-          codigo_postal: plantaForm.codigo_postal || '',
-          latitud: plantaForm.latitud ? parseFloat(plantaForm.latitud) : undefined,
-          longitud: plantaForm.longitud ? parseFloat(plantaForm.longitud) : undefined
-        };
         const nuevaUbicacion = await ubicacionService.createUbicacion(ubicacionData);
         ubicacionId = nuevaUbicacion.id;
       }
       
-      //  Crear o actualizar planta
       const plantaData = {
         nombre: plantaForm.nombre,
         direccion: plantaForm.direccion || '',
@@ -272,7 +279,8 @@ export default function MiEmpresaPage() {
         distrito: ubicacion.distrito || '',
         codigo_postal: ubicacion.codigo_postal || '',
         latitud: ubicacion.latitud?.toString() || '',
-        longitud: ubicacion.longitud?.toString() || ''
+        longitud: ubicacion.longitud?.toString() || '',
+        zona_normativa_id: ubicacion.zona_normativa_id?.toString() || ''
       });
     } else {
       setEditingUbicacion(null);
@@ -282,7 +290,8 @@ export default function MiEmpresaPage() {
         distrito: '',
         codigo_postal: '',
         latitud: '',
-        longitud: ''
+        longitud: '',
+        zona_normativa_id: ''
       });
     }
     setShowUbicacionModal(true);
@@ -301,7 +310,8 @@ export default function MiEmpresaPage() {
         distrito: ubicacionForm.distrito,
         codigo_postal: ubicacionForm.codigo_postal,
         latitud: ubicacionForm.latitud ? parseFloat(ubicacionForm.latitud) : undefined,
-        longitud: ubicacionForm.longitud ? parseFloat(ubicacionForm.longitud) : undefined
+        longitud: ubicacionForm.longitud ? parseFloat(ubicacionForm.longitud) : undefined,
+        zona_normativa_id: ubicacionForm.zona_normativa_id ? parseInt(ubicacionForm.zona_normativa_id) : undefined
       };
 
       if (editingUbicacion) {
@@ -318,7 +328,6 @@ export default function MiEmpresaPage() {
       toast.error('Error al guardar ubicación');
     }
   };
-
 
   // ============ COLUMNAS ============
   const columnsPlantas = [
@@ -458,7 +467,7 @@ export default function MiEmpresaPage() {
         </Tabs>
       </Card>
 
-      {/* Modal Editar Empresa (sin cambios) */}
+      {/* Modal Editar Empresa */}
       <Modal show={showEmpresaModal} onHide={() => setShowEmpresaModal(false)} centered>
         <Modal.Header closeButton>
           <Modal.Title><i className="bi bi-building me-2"></i>Editar Empresa</Modal.Title>
@@ -493,7 +502,7 @@ export default function MiEmpresaPage() {
         </Modal.Footer>
       </Modal>
 
-      {/*  Modal Planta CON CAMPOS DE UBICACIÓN INTEGRADOS */}
+      {/* Modal Planta CON SELECTOR DE ZONA NORMATIVA */}
       <Modal show={showPlantaModal} onHide={() => setShowPlantaModal(false)} centered>
         <Modal.Header closeButton>
           <Modal.Title>
@@ -575,6 +584,26 @@ export default function MiEmpresaPage() {
                 placeholder="Ej: 28901"
               />
             </Form.Group>
+
+            {/*  SELECTOR DE ZONA NORMATIVA EN PLANTA */}
+            <Form.Group className="mb-3">
+              <Form.Label>Zona Normativa</Form.Label>
+              <Form.Select
+                value={plantaForm.zona_normativa_id}
+                onChange={(e) => setPlantaForm({ ...plantaForm, zona_normativa_id: e.target.value })}
+              >
+                <option value="">Seleccionar zona normativa...</option>
+                {zonasNormativas.map((z) => (
+                  <option key={z.zona_normativa_id} value={z.zona_normativa_id}>
+                    {z.zona_nombre}
+                  </option>
+                ))}
+              </Form.Select>
+              <Form.Text className="text-muted">
+                Zona normativa para aplicar límites legales de emisiones
+              </Form.Text>
+            </Form.Group>
+
             <Row>
               <Col md={6}>
                 <Form.Group className="mb-3">
@@ -607,7 +636,7 @@ export default function MiEmpresaPage() {
         </Modal.Footer>
       </Modal>
 
-      {/* Modal Ubicación (independiente) */}
+      {/* Modal Ubicación CON SELECTOR DE ZONA NORMATIVA */}
       <Modal show={showUbicacionModal} onHide={() => setShowUbicacionModal(false)} centered>
         <Modal.Header closeButton>
           <Modal.Title>
@@ -633,12 +662,38 @@ export default function MiEmpresaPage() {
               <Form.Label>Código Postal</Form.Label>
               <Form.Control type="text" value={ubicacionForm.codigo_postal} onChange={(e) => setUbicacionForm({ ...ubicacionForm, codigo_postal: e.target.value })} />
             </Form.Group>
+
+            {/* SELECTOR DE ZONA NORMATIVA EN UBICACIÓN */}
+            <Form.Group className="mb-3">
+              <Form.Label>Zona Normativa</Form.Label>
+              <Form.Select
+                value={ubicacionForm.zona_normativa_id}
+                onChange={(e) => setUbicacionForm({ ...ubicacionForm, zona_normativa_id: e.target.value })}
+              >
+                <option value="">Seleccionar zona normativa...</option>
+                {zonasNormativas.map((z) => (
+                  <option key={z.zona_normativa_id} value={z.zona_normativa_id}>
+                    {z.zona_nombre}
+                  </option>
+                ))}
+              </Form.Select>
+              <Form.Text className="text-muted">
+                Zona normativa para aplicar límites legales de emisiones
+              </Form.Text>
+            </Form.Group>
+
             <Row>
               <Col md={6}>
-                <Form.Group className="mb-3"><Form.Label>Latitud</Form.Label><Form.Control type="number" step="0.0001" value={ubicacionForm.latitud} onChange={(e) => setUbicacionForm({ ...ubicacionForm, latitud: e.target.value })} /></Form.Group>
+                <Form.Group className="mb-3">
+                  <Form.Label>Latitud</Form.Label>
+                  <Form.Control type="number" step="0.0001" value={ubicacionForm.latitud} onChange={(e) => setUbicacionForm({ ...ubicacionForm, latitud: e.target.value })} />
+                </Form.Group>
               </Col>
               <Col md={6}>
-                <Form.Group className="mb-3"><Form.Label>Longitud</Form.Label><Form.Control type="number" step="0.0001" value={ubicacionForm.longitud} onChange={(e) => setUbicacionForm({ ...ubicacionForm, longitud: e.target.value })} /></Form.Group>
+                <Form.Group className="mb-3">
+                  <Form.Label>Longitud</Form.Label>
+                  <Form.Control type="number" step="0.0001" value={ubicacionForm.longitud} onChange={(e) => setUbicacionForm({ ...ubicacionForm, longitud: e.target.value })} />
+                </Form.Group>
               </Col>
             </Row>
           </Form>

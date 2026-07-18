@@ -8,7 +8,7 @@ from models import Ubicacion, Planta, Empresa, Usuario, ZonaNormativa
 from schemas import UbicacionBase, UbicacionCreate, UbicacionResponse
 from auth import get_current_user
 
-router = APIRouter(prefix="/ubicaciones", tags=["Ubicaciones"])
+router = APIRouter(prefix="/ubicaciones", tags=["Ubicaciones"], redirect_slashes=False)
 
 # ============================================
 # LISTAR UBICACIONES (SOLO DE LA EMPRESA DEL USUARIO)
