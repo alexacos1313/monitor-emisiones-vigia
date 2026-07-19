@@ -1,4 +1,4 @@
-#backend/app/routes/usuarios.py
+# backend/app/routes/usuarios.py
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List, Optional
@@ -17,7 +17,7 @@ from auth import (
     check_user_has_empresa_access
 )
 
-router = APIRouter(prefix="/usuarios", tags=["Usuarios"], redirect_slashes=False)
+router = APIRouter(prefix="/usuarios", tags=["Usuarios"])
 
 @router.get("/", response_model=List[UsuarioResponse])
 def get_usuarios(
@@ -39,26 +39,67 @@ def create_usuario(
     current_user: Usuario = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Crear usuario (solo SUPER_ADMIN o EMPRESA_ADMIN)"""
+    """
+    Crear usuario
     
+    Permisos:
+    - SUPER_ADMIN: Puede crear cualquier usuario (SUPER_ADMIN, EMPRESA_ADMIN, TECNICO, CONSULTOR)
+    - EMPRESA_ADMIN: Solo puede crear TECNICO y CONSULTOR para su propia empresa
+    """
+    
+    #  Solo SUPER_ADMIN y EMPRESA_ADMIN pueden crear usuarios
     if current_user.rol not in ["SUPER_ADMIN", "EMPRESA_ADMIN"]:
-        raise HTTPException(status_code=403, detail="Sin permisos")
+        raise HTTPException(
+            status_code=403, 
+            detail="No tienes permisos para crear usuarios. Solo SUPER_ADMIN y EMPRESA_ADMIN pueden crear usuarios."
+        )
     
+    #  Validar empresa
     if usuario_data.id_empresa:
+        # EMPRESA_ADMIN solo puede crear usuarios en su propia empresa
         if current_user.rol == "EMPRESA_ADMIN" and usuario_data.id_empresa != current_user.id_empresa:
-            raise HTTPException(status_code=403, detail="No puedes crear usuarios para otra empresa")
+            raise HTTPException(
+                status_code=403, 
+                detail="No puedes crear usuarios para otra empresa. Solo para tu empresa."
+            )
         
+        # Verificar que la empresa existe
         empresa = db.query(Empresa).filter(Empresa.id == usuario_data.id_empresa).first()
         if not empresa:
             raise HTTPException(status_code=404, detail="Empresa no encontrada")
     
-    if usuario_data.rol == "EMPRESA_ADMIN" and current_user.rol != "SUPER_ADMIN":
-        raise HTTPException(status_code=403, detail="Solo SUPER_ADMIN puede crear administradores de empresa")
+    #  Validar roles según permisos
+    if current_user.rol == "EMPRESA_ADMIN":
+        # EMPRESA_ADMIN solo puede crear TECNICO y CONSULTOR
+        if usuario_data.rol not in ["TECNICO", "CONSULTOR"]:
+            raise HTTPException(
+                status_code=403, 
+                detail="EMPRESA_ADMIN solo puede crear usuarios con roles TECNICO o CONSULTOR"
+            )
+        # EMPRESA_ADMIN debe asignar su propia empresa
+        if not usuario_data.id_empresa:
+            usuario_data.id_empresa = current_user.id_empresa
+        elif usuario_data.id_empresa != current_user.id_empresa:
+            raise HTTPException(
+                status_code=403, 
+                detail="No puedes asignar una empresa diferente a la tuya"
+            )
     
+    #  SUPER_ADMIN puede crear cualquier rol incluyendo SUPER_ADMIN y EMPRESA_ADMIN
+    if current_user.rol == "SUPER_ADMIN":
+        # SUPER_ADMIN debe tener empresa si crea EMPRESA_ADMIN
+        if usuario_data.rol == "EMPRESA_ADMIN" and not usuario_data.id_empresa:
+            raise HTTPException(
+                status_code=400, 
+                detail="EMPRESA_ADMIN debe tener una empresa asignada"
+            )
+    
+    #  Verificar email único
     existing = db.query(Usuario).filter(Usuario.email == usuario_data.email).first()
     if existing:
         raise HTTPException(status_code=400, detail="Email ya registrado")
     
+    #  Crear usuario
     new_user = Usuario(
         nombre=usuario_data.nombre,
         email=usuario_data.email,

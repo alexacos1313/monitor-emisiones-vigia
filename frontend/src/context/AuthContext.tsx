@@ -1,5 +1,6 @@
-// context/AuthContext.tsx
+// frontend/src/context/AuthContext.tsx
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 interface AuthContextType {
   user: any;
@@ -12,6 +13,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const navigate = useNavigate();
   const [token, setToken] = useState<string | null>(null);
   const [user, setUser] = useState<any>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -25,13 +27,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setToken(storedToken);
         setUser(JSON.parse(storedUser));
         setIsAuthenticated(true);
-      } catch {
+        console.log(' Usuario autenticado desde localStorage:', JSON.parse(storedUser).email);
+      } catch (error) {
+        console.error(' Error al cargar usuario del localStorage:', error);
         setIsAuthenticated(false);
       }
     }
   }, []);
 
   const login = (newToken: string, newUser: any) => {
+    console.log(' Iniciando sesión:', newUser.email);
+    
     localStorage.setItem('token', newToken);
     localStorage.setItem('user', JSON.stringify(newUser));
     setToken(newToken);
@@ -40,11 +46,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
+    console.log(' Cerrando sesión del usuario:', user?.email || 'desconocido');
+    
+    //  Limpiar todo el localStorage relacionado con la sesión
+    const keysToRemove = [
+      'token',
+      'user',
+      'empresa_seleccionada_id',
+      'empresa_seleccionada'
+    ];
+    
+    keysToRemove.forEach(key => {
+      localStorage.removeItem(key);
+      console.log(`   Eliminado: ${key}`);
+    });
+    
+    //  Limpiar estado
     setToken(null);
     setUser(null);
     setIsAuthenticated(false);
+    
+    //  Redirigir al login
+    navigate('/login');
   };
 
   return (

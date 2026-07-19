@@ -48,33 +48,33 @@ class AlarmaService extends BaseService {
   }
 
   async getEstadisticas(sensor_id?: number): Promise<EstadisticasAlarmas> {
-  try {
-    const params: any = {};
-    if (sensor_id) {
-      params.sensor_id = sensor_id;
+    try {
+      const params: any = {};
+      if (sensor_id) {
+        params.sensor_id = sensor_id;
+      }
+      
+      const response = await api.get('/alarmas/estadisticas', { params });
+      const data = response.data;
+      
+      return {
+        total: data.total || 0,
+        pendientes: data.pendientes || 0,
+        confirmadas: data.confirmadas || 0,
+        por_tipo: data.por_tipo || [],
+        por_contaminante: data.por_contaminante || []
+      };
+    } catch (error) {
+      console.error('Error cargando estadisticas:', error);
+      return {
+        total: 0,
+        pendientes: 0,
+        confirmadas: 0,
+        por_tipo: [],
+        por_contaminante: []
+      };
     }
-    
-    const response = await api.get('/alarmas/estadisticas', { params });
-    const data = response.data;
-    
-    return {
-      total: data.total || 0,
-      pendientes: data.pendientes || 0,
-      confirmadas: data.confirmadas || 0,
-      por_tipo: data.por_tipo || [],
-      por_contaminante: data.por_contaminante || []
-    };
-  } catch (error) {
-    console.error('Error cargando estadisticas:', error);
-    return {
-      total: 0,
-      pendientes: 0,
-      confirmadas: 0,
-      por_tipo: [],
-      por_contaminante: []
-    };
   }
-}
 
   async confirmarAlarma(id: number): Promise<void> {
     return this.handleRequest(
@@ -89,6 +89,15 @@ class AlarmaService extends BaseService {
       undefined,
       () => api.delete(`/alarmas/${id}`),
       `Error eliminando alarma ${id}`
+    );
+  }
+
+  //  Eliminar todas las alarmas (solo SUPER_ADMIN)
+  async deleteAllAlarmas(): Promise<void> {
+    return this.handleRequest(
+      undefined,
+      () => api.delete('/alarmas/'),
+      'Error eliminando todas las alarmas'
     );
   }
 }

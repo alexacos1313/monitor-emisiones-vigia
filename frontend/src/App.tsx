@@ -14,39 +14,38 @@ import SensoresPage from './pages/SensoresPage';
 import ReportesPage from './pages/ReportesPage';
 import PerfilPage from './pages/PerfilPage';
 import MantenimientoPage from './pages/MantenimientoPage';
-// import { ThemeProvider } from './context/ThemeContext';
 import { AuthProvider } from './context/AuthContext';
 import UmbralesNormativosPage from './pages/UmbralesNormativosPage';
 
 function App() {
   return (
     // <ThemeProvider>
+    <BrowserRouter>  
       <AuthProvider> 
-        <BrowserRouter>
-          <Toaster position="top-right" />
-          <Routes>
-            <Route path="/login" element={<Login />} />
-            
-            <Route element={<PrivateRoute />}>
-              <Route element={<Layout />}>
-                <Route path="/dashboard" element={<Dashboard />} />
-                <Route path="/mediciones" element={<MedicionesPage />} />
-                <Route path="/alarmas" element={<AlarmasPage />} />
-                <Route path="/reportes" element={<ReportesPage />} />
-                <Route path="/empresas" element={<EmpresasPage />} />
-                <Route path="/mi-empresa" element={<MiEmpresaPage />} />
-                <Route path="/sensores" element={<SensoresPage />} />
-                <Route path="/usuarios" element={<UsuariosPage />} />  
-                <Route path="/perfil" element={<PerfilPage />} />
-                <Route path="/mantenimiento" element={<MantenimientoPage />} />
-                <Route path="/umbrales-normativos" element={<UmbralesNormativosPage />} />
-              </Route>
+        <Toaster position="top-right" />
+        <Routes>
+          <Route path="/login" element={<Login />} />
+          
+          <Route element={<PrivateRoute />}>
+            <Route element={<Layout />}>
+              <Route path="/dashboard" element={<Dashboard />} />
+              <Route path="/mediciones" element={<MedicionesPage />} />
+              <Route path="/alarmas" element={<AlarmasPage />} />
+              <Route path="/reportes" element={<ReportesPage />} />
+              <Route path="/empresas" element={<EmpresasPage />} />
+              <Route path="/mi-empresa" element={<MiEmpresaPage />} />
+              <Route path="/sensores" element={<SensoresPage />} />
+              <Route path="/usuarios" element={<UsuariosPage />} />  
+              <Route path="/perfil" element={<PerfilPage />} />
+              <Route path="/mantenimiento" element={<MantenimientoPage />} />
+              <Route path="/umbrales-normativos" element={<UmbralesNormativosPage />} />
             </Route>
-            
-            <Route path="*" element={<Navigate to="/dashboard" replace />} />
-          </Routes>
-        </BrowserRouter>
-      </AuthProvider> 
+          </Route>
+          
+          <Route path="*" element={<Navigate to="/dashboard" replace />} />
+        </Routes>
+      </AuthProvider>
+    </BrowserRouter>
     // </ThemeProvider>
   );
 }
