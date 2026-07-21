@@ -1,6 +1,11 @@
 #!/bin/bash
 set -e
 
+echo " Iniciando backend VIGIA..."
+
+# Cambiar al directorio de trabajo
+cd /app
+
 # Solo crear la base de datos si NO existe
 if [ ! -f /app/data/emisiones.db ]; then
     echo " Primera vez: creando base de datos..."
