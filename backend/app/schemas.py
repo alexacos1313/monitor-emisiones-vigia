@@ -331,3 +331,55 @@ class UmbralNormativoResponse(UmbralNormativoBase):
     zona_nombre: Optional[str] = None
     
     model_config = ConfigDict(from_attributes=True)
+
+# =====================================================
+# MODELOS DE MANTENIMIENTO
+# =====================================================
+
+class MantenimientoBase(BaseModel):
+    id_sensor: int
+    fecha: datetime
+    tipo: str  # PREVENTIVO, CORRECTIVO, CALIBRACION
+    tecnico: Optional[str] = None
+    observaciones: Optional[str] = None
+    proxima_calibracion: Optional[datetime] = None
+    prioridad: Optional[str] = "MEDIA"
+
+class MantenimientoCreate(MantenimientoBase):
+    pass
+
+class MantenimientoResponse(BaseModel):
+    id: int
+    id_sensor: int
+    sensor_nombre: Optional[str] = None
+    fecha: datetime
+    tipo: str
+    tecnico: Optional[str] = None
+    observaciones: Optional[str] = None
+    proxima_calibracion: Optional[datetime] = None
+    completado: bool
+    prioridad: Optional[str] = "MEDIA"
+    
+    model_config = ConfigDict(from_attributes=True)
+
+class MantenimientoProgramadoCreate(BaseModel):
+    id_sensor: int
+    fecha_programada: datetime
+    tipo: str
+    descripcion: str
+    prioridad: str = "MEDIA"
+    tecnico: Optional[str] = None
+    proxima_calibracion: Optional[datetime] = None
+
+class MantenimientoProgramadoResponse(BaseModel):
+    id: int
+    id_sensor: int
+    sensor_nombre: Optional[str] = None
+    fecha_programada: datetime
+    tipo: str
+    descripcion: str
+    prioridad: str
+    estado: str  # PENDIENTE, COMPLETADO, CANCELADO
+    completado: bool = False
+    
+    model_config = ConfigDict(from_attributes=True)

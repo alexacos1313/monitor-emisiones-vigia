@@ -246,10 +246,12 @@ class MantenimientoSensor(Base):
     id = Column(Integer, primary_key=True, index=True)
     id_sensor = Column(Integer, ForeignKey("sensores.id"), nullable=False)
     fecha = Column(DateTime, nullable=False)
-    tipo = Column(String)
+    tipo = Column(String)  # PREVENTIVO, CORRECTIVO, CALIBRACION
     tecnico = Column(String)
     observaciones = Column(Text)
     proxima_calibracion = Column(DateTime)
+    completado = Column(Integer, default=0)  # 0=Pendiente, 1=Completado
+    prioridad = Column(String, default="MEDIA")  # ALTA, MEDIA, BAJA
     
     sensor = relationship("Sensor", back_populates="mantenimientos")
 

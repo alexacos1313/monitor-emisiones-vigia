@@ -38,6 +38,7 @@ app.include_router(usuarios_router, dependencies=[Depends(get_current_user)])
 app.include_router(ubicaciones_router, dependencies=[Depends(get_current_user)])
 app.include_router(zonas_normativas_router, dependencies=[Depends(get_current_user)])
 app.include_router(umbrales_normativos_router, dependencies=[Depends(get_current_user)]) 
+app.include_router(mantenimiento_router, dependencies=[Depends(get_current_user)])
 
 # WebSocket (NO requieren autenticación)
 app.include_router(websocket_sensor_router)
