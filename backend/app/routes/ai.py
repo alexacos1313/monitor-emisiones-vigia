@@ -558,7 +558,7 @@ async def consultar_ai(
         return PreguntaResponse(pregunta=request.pregunta, respuesta=respuesta_detallada)
     
     # ============================================
-    # PREGUNTAS SOBRE PROMEDIOS (MEJORADO)
+    # PREGUNTAS SOBRE PROMEDIOS 
     # ============================================
     if es_pregunta_promedio(pregunta_normalizada) or "promedio" in pregunta_lower:
         contaminante = extraer_contaminante(pregunta_normalizada)

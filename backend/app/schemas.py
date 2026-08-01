@@ -336,7 +336,8 @@ class UmbralNormativoResponse(UmbralNormativoBase):
 # MODELOS DE MANTENIMIENTO
 # =====================================================
 
-class MantenimientoBase(BaseModel):
+
+class MantenimientoCreate(BaseModel):
     id_sensor: int
     fecha: datetime
     tipo: str  # PREVENTIVO, CORRECTIVO, CALIBRACION
@@ -345,8 +346,6 @@ class MantenimientoBase(BaseModel):
     proxima_calibracion: Optional[datetime] = None
     prioridad: Optional[str] = "MEDIA"
 
-class MantenimientoCreate(MantenimientoBase):
-    pass
 
 class MantenimientoResponse(BaseModel):
     id: int
@@ -362,11 +361,12 @@ class MantenimientoResponse(BaseModel):
     
     model_config = ConfigDict(from_attributes=True)
 
+
 class MantenimientoProgramadoCreate(BaseModel):
     id_sensor: int
-    fecha_programada: datetime
+    fecha_programada: datetime  # El frontend envía esto
     tipo: str
-    descripcion: str
+    descripcion: str 
     prioridad: str = "MEDIA"
     tecnico: Optional[str] = None
     proxima_calibracion: Optional[datetime] = None

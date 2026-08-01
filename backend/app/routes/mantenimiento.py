@@ -30,13 +30,11 @@ def get_mantenimientos(
     if sensor_id:
         query = query.filter(MantenimientoSensor.id_sensor == sensor_id)
     
-    # Filtrar por empresa si no es SUPER_ADMIN
     if current_user.rol != "SUPER_ADMIN":
         query = query.join(Sensor).join(Planta).filter(Planta.id_empresa == current_user.id_empresa)
     
     resultados = query.order_by(MantenimientoSensor.fecha.desc()).all()
     
-    # Convertir a formato esperado por el frontend
     return [
         {
             "id": m.id,
@@ -52,7 +50,6 @@ def get_mantenimientos(
         }
         for m in resultados
     ]
-
 
 # ============================================
 # OBTENER MANTENIMIENTOS PROGRAMADOS
@@ -75,7 +72,6 @@ def get_mantenimientos_programados(
     
     resultados = query.order_by(MantenimientoSensor.fecha.asc()).all()
     
-    # Convertir a formato esperado por el frontend
     return [
         {
             "id": m.id,
@@ -83,14 +79,13 @@ def get_mantenimientos_programados(
             "sensor_nombre": m.sensor.nombre if m.sensor else None,
             "fecha_programada": m.fecha,
             "tipo": m.tipo,
-            "descripcion": m.observaciones,
+            "descripcion": m.observaciones or "",
             "prioridad": m.prioridad or "MEDIA",
             "estado": "PENDIENTE" if not m.completado else "COMPLETADO",
             "completado": bool(m.completado)
         }
         for m in resultados
     ]
-
 
 # ============================================
 # OBTENER MANTENIMIENTOS VENCIDOS
@@ -120,14 +115,13 @@ def get_mantenimientos_vencidos(
             "sensor_nombre": m.sensor.nombre if m.sensor else None,
             "fecha_programada": m.fecha,
             "tipo": m.tipo,
-            "descripcion": m.observaciones,
+            "descripcion": m.observaciones or "",
             "prioridad": m.prioridad or "MEDIA",
             "estado": "PENDIENTE" if not m.completado else "COMPLETADO",
             "completado": bool(m.completado)
         }
         for m in resultados
     ]
-
 
 # ============================================
 # PROGRAMAR NUEVO MANTENIMIENTO
@@ -173,12 +167,11 @@ def crear_mantenimiento_programado(
         "sensor_nombre": sensor.nombre,
         "fecha_programada": nuevo_mantenimiento.fecha,
         "tipo": nuevo_mantenimiento.tipo,
-        "descripcion": nuevo_mantenimiento.observaciones,
+        "descripcion": nuevo_mantenimiento.observaciones or "",
         "prioridad": nuevo_mantenimiento.prioridad or "MEDIA",
         "estado": "PENDIENTE",
         "completado": False
     }
-
 
 # ============================================
 # COMPLETAR MANTENIMIENTO
@@ -216,7 +209,6 @@ def completar_mantenimiento(
     
     return {"message": "Mantenimiento completado correctamente"}
 
-
 # ============================================
 # CANCELAR MANTENIMIENTO PROGRAMADO
 # ============================================
@@ -246,12 +238,10 @@ def cancelar_mantenimiento(
     if current_user.rol != "SUPER_ADMIN" and planta.id_empresa != current_user.id_empresa:
         raise HTTPException(status_code=403, detail="Sin permiso para cancelar este mantenimiento")
     
-    # Eliminar el mantenimiento (en lugar de cancelarlo)
     db.delete(mantenimiento)
     db.commit()
     
     return {"message": "Mantenimiento cancelado correctamente"}
-
 
 # ============================================
 # ELIMINAR MANTENIMIENTO PROGRAMADO
@@ -262,7 +252,7 @@ def eliminar_mantenimiento(
     current_user: Usuario = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Eliminar mantenimiento programado (solo SUPER_ADMIN o EMPRESA_ADMIN)"""
+    """Eliminar mantenimiento programado"""
     
     mantenimiento = db.query(MantenimientoSensor).filter(
         MantenimientoSensor.id == mantenimiento_id
@@ -279,7 +269,6 @@ def eliminar_mantenimiento(
     if not planta:
         raise HTTPException(status_code=404, detail="Planta no encontrada")
     
-    # Verificar permisos
     if current_user.rol != "SUPER_ADMIN" and planta.id_empresa != current_user.id_empresa:
         raise HTTPException(status_code=403, detail="Sin permiso para eliminar este mantenimiento")
     
@@ -287,7 +276,6 @@ def eliminar_mantenimiento(
     db.commit()
     
     return {"message": "Mantenimiento eliminado correctamente"}
-
 
 # ============================================
 # ACTUALIZAR MANTENIMIENTO PROGRAMADO
@@ -329,7 +317,6 @@ def actualizar_mantenimiento(
     db.commit()
     db.refresh(mantenimiento)
     
-    # Obtener nombre del sensor actualizado
     sensor_actualizado = db.query(Sensor).filter(Sensor.id == mantenimiento.id_sensor).first()
     
     return {
@@ -338,7 +325,7 @@ def actualizar_mantenimiento(
         "sensor_nombre": sensor_actualizado.nombre if sensor_actualizado else None,
         "fecha_programada": mantenimiento.fecha,
         "tipo": mantenimiento.tipo,
-        "descripcion": mantenimiento.observaciones,
+        "descripcion": mantenimiento.observaciones or "",
         "prioridad": mantenimiento.prioridad or "MEDIA",
         "estado": "PENDIENTE" if not mantenimiento.completado else "COMPLETADO",
         "completado": bool(mantenimiento.completado)

@@ -21,6 +21,8 @@ export interface Planta {
   actividad: string;
   fecha_alta: string;
   activo: number;
+  id_ubicacion?: number;
+  empresa_nombre?: string;
 }
 
 // Datos mock
@@ -66,6 +68,10 @@ const mockPlantas: Planta[] = [
 ];
 
 class EmpresaService extends BaseService {
+  constructor() {
+    super({ useMock: false });
+  }
+
   private empresas = [...mockEmpresas];
   private plantas = [...mockPlantas];
   private nextId = 4;
@@ -73,126 +79,67 @@ class EmpresaService extends BaseService {
 
   // ============ EMPRESAS ============
   async getEmpresas(activas?: boolean): Promise<Empresa[]> {
-    let filtradas = [...this.empresas];
-    if (activas !== undefined) {
-      filtradas = filtradas.filter(e => e.activo === (activas ? 1 : 0));
+    try {
+      const params: any = {};
+      if (activas !== undefined) {
+        params.activas = activas;
+      }
+      const response = await api.get('/empresas/', { params });
+      return response.data || [];
+    } catch (error) {
+      console.error('Error cargando empresas:', error);
+      let filtradas = [...this.empresas];
+      if (activas !== undefined) {
+        filtradas = filtradas.filter(e => e.activo === (activas ? 1 : 0));
+      }
+      return filtradas;
     }
-    return this.handleRequest(
-      filtradas,
-      () => api.get('/empresas/', { params: { activas } }),
-      'Error cargando empresas'
-    );
   }
 
   async getEmpresa(id: number): Promise<Empresa | null> {
-    return this.handleRequest(
-      this.empresas.find(e => e.id === id) || null,
-      () => api.get(`/empresas/${id}`),
-      `Error cargando empresa ${id}`
-    );
+    try {
+      const response = await api.get(`/empresas/${id}`);
+      return response.data;
+    } catch (error) {
+      console.error(`Error cargando empresa ${id}:`, error);
+      return this.empresas.find(e => e.id === id) || null;
+    }
   }
 
   async createEmpresa(data: Partial<Empresa>): Promise<Empresa> {
-    const nuevaEmpresa: Empresa = {
-      id: this.nextId++,
-      nombre: data.nombre || '',
-      cif: data.cif || '',
-      direccion_social: data.direccion_social || '',
-      telefono: data.telefono || '',
-      email: data.email || '',
-      fecha_registro: new Date().toISOString(),
-      activo: 1
-    };
-    this.empresas.push(nuevaEmpresa);
-    
-    return this.handleRequest(
-      nuevaEmpresa,
-      () => api.post('/empresas', data),
-      'Error creando empresa'
-    );
+    try {
+      const response = await api.post('/empresas', data);
+      return response.data;
+    } catch (error) {
+      console.error('Error creando empresa:', error);
+      const nuevaEmpresa: Empresa = {
+        id: this.nextId++,
+        nombre: data.nombre || '',
+        cif: data.cif || '',
+        direccion_social: data.direccion_social || '',
+        telefono: data.telefono || '',
+        email: data.email || '',
+        fecha_registro: new Date().toISOString(),
+        activo: 1
+      };
+      this.empresas.push(nuevaEmpresa);
+      return nuevaEmpresa;
+    }
   }
 
   async updateEmpresa(id: number, data: Partial<Empresa>): Promise<Empresa> {
-    const index = this.empresas.findIndex(e => e.id === id);
-    if (index !== -1) {
-      this.empresas[index] = { ...this.empresas[index], ...data };
-    }
-    
-    return this.handleRequest(
-      this.empresas[index] || { id, ...data } as Empresa,
-      () => api.put(`/empresas/${id}`, data),
-      `Error actualizando empresa ${id}`
-    );
-  }
-
-  async deleteEmpresa(id: number, fisico: boolean = false): Promise<void> {
-    if (fisico) {
-      this.empresas = this.empresas.filter(e => e.id !== id);
-    } else {
+    try {
+      const response = await api.put(`/empresas/${id}`, data);
+      return response.data;
+    } catch (error) {
+      console.error(`Error actualizando empresa ${id}:`, error);
       const index = this.empresas.findIndex(e => e.id === id);
       if (index !== -1) {
-        this.empresas[index].activo = 0;
+        this.empresas[index] = { ...this.empresas[index], ...data };
+        return this.empresas[index];
       }
+      throw error;
     }
-    
-    return this.handleRequest(
-      undefined,
-      () => api.delete(`/empresas/${id}`, { params: { fisico } }),
-      `Error eliminando empresa ${id}`
-    );
-  }
-
-  // ============ PLANTAS ============
-  async getPlantas(empresa_id?: number): Promise<Planta[]> {
-    let filtradas = [...this.plantas];
-    if (empresa_id) {
-      filtradas = filtradas.filter(p => p.id_empresa === empresa_id);
-    }
-    return this.handleRequest(
-      filtradas,
-      () => api.get('/plantas', { params: { empresa_id } }),
-      'Error cargando plantas'
-    );
-  }
-
-  async getPlanta(id: number): Promise<Planta | null> {
-    return this.handleRequest(
-      this.plantas.find(p => p.id === id) || null,
-      () => api.get(`/plantas/${id}`),
-      `Error cargando planta ${id}`
-    );
-  }
-
-  async createPlanta(data: Partial<Planta>): Promise<Planta> {
-    const nuevaPlanta: Planta = {
-      id: this.nextPlantaId++,
-      id_empresa: data.id_empresa || 0,
-      nombre: data.nombre || '',
-      direccion: data.direccion || '',
-      actividad: data.actividad || '',
-      fecha_alta: new Date().toISOString(),
-      activo: 1
-    };
-    this.plantas.push(nuevaPlanta);
-    
-    return this.handleRequest(
-      nuevaPlanta,
-      () => api.post('/plantas', data),
-      'Error creando planta'
-    );
-  }
-
-  async updatePlanta(id: number, data: Partial<Planta>): Promise<Planta> {
-    const index = this.plantas.findIndex(p => p.id === id);
-    if (index !== -1) {
-      this.plantas[index] = { ...this.plantas[index], ...data };
-    }
-    
-    return this.handleRequest(
-      this.plantas[index] || { id, ...data } as Planta,
-      () => api.put(`/plantas/${id}`, data),
-      `Error actualizando planta ${id}`
-    );
   }
 
   async patchEmpresa(id: number, data: Partial<Empresa>): Promise<Empresa> {
@@ -205,17 +152,96 @@ class EmpresaService extends BaseService {
     }
   }
 
-  async deletePlanta(id: number): Promise<void> {
-    const index = this.plantas.findIndex(p => p.id === id);
-    if (index !== -1) {
-      this.plantas[index].activo = 0;
+  async deleteEmpresa(id: number, fisico: boolean = false): Promise<void> {
+    try {
+      await api.delete(`/empresas/${id}`, { params: { fisico } });
+    } catch (error) {
+      console.error(`Error eliminando empresa ${id}:`, error);
+      if (fisico) {
+        this.empresas = this.empresas.filter(e => e.id !== id);
+      } else {
+        const index = this.empresas.findIndex(e => e.id === id);
+        if (index !== -1) {
+          this.empresas[index].activo = 0;
+        }
+      }
     }
-    
-    return this.handleRequest(
-      undefined,
-      () => api.delete(`/plantas/${id}`),
-      `Error eliminando planta ${id}`
-    );
+  }
+
+  // ============ PLANTAS ============
+  async getPlantas(empresa_id?: number): Promise<Planta[]> {
+    try {
+      const params: any = {};
+      if (empresa_id) {
+        params.empresa_id = empresa_id;
+      }
+      const response = await api.get('/plantas/', { params });
+      return response.data || [];
+    } catch (error) {
+      console.error('Error cargando plantas:', error);
+      let filtradas = [...this.plantas];
+      if (empresa_id) {
+        filtradas = filtradas.filter(p => p.id_empresa === empresa_id);
+      }
+      return filtradas;
+    }
+  }
+
+  async getPlanta(id: number): Promise<Planta | null> {
+    try {
+      const response = await api.get(`/plantas/${id}`);
+      return response.data;
+    } catch (error) {
+      console.error(`Error cargando planta ${id}:`, error);
+      return this.plantas.find(p => p.id === id) || null;
+    }
+  }
+
+  async createPlanta(data: Partial<Planta>): Promise<Planta> {
+    try {
+      const response = await api.post('/plantas', data);
+      return response.data;
+    } catch (error) {
+      console.error('Error creando planta:', error);
+      const nuevaPlanta: Planta = {
+        id: this.nextPlantaId++,
+        id_empresa: data.id_empresa || 0,
+        nombre: data.nombre || '',
+        direccion: data.direccion || '',
+        actividad: data.actividad || '',
+        fecha_alta: new Date().toISOString(),
+        activo: 1
+      };
+      this.plantas.push(nuevaPlanta);
+      return nuevaPlanta;
+    }
+  }
+
+  async updatePlanta(id: number, data: Partial<Planta>): Promise<Planta> {
+    try {
+      const response = await api.put(`/plantas/${id}`, data);
+      return response.data;
+    } catch (error) {
+      console.error(`Error actualizando planta ${id}:`, error);
+      const index = this.plantas.findIndex(p => p.id === id);
+      if (index !== -1) {
+        this.plantas[index] = { ...this.plantas[index], ...data };
+        return this.plantas[index];
+      }
+      throw error;
+    }
+  }
+
+  async deletePlanta(id: number): Promise<void> {
+    try {
+      await api.delete(`/plantas/${id}`);
+    } catch (error) {
+      console.error(`Error eliminando planta ${id}:`, error);
+      const index = this.plantas.findIndex(p => p.id === id);
+      if (index !== -1) {
+        this.plantas[index].activo = 0;
+      }
+    }
   }
 
   async getPlantasPorEmpresa(empresa_id: number): Promise<Planta[]> {
@@ -223,4 +249,4 @@ class EmpresaService extends BaseService {
   }
 }
 
-export const empresaService = new EmpresaService({ useMock: false });
+export const empresaService = new EmpresaService();

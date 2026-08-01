@@ -16,6 +16,7 @@ from .mantenimiento import router as mantenimiento_router
 from .websocket_alerts import router as websocket_alerts_router
 from .websocket_sensor import router as websocket_sensor_router
 from .ai import router as ai_router 
+from .historial_umbrales import router as historial_umbrales_router 
 
 __all__ = [
     'auth_router',
@@ -35,4 +36,5 @@ __all__ = [
     'websocket_alerts_router',
     'websocket_sensor_router',
     'ai_router',
+    'historial_umbrales_router',
 ]

@@ -4,9 +4,9 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import datetime
 from database import get_db
-from models import Sensor, Planta, Empresa, Usuario, UmbralSensor, Medicion, MedicionContaminante
+from models import Sensor, Planta, Empresa, Usuario, UmbralSensor, Medicion, MedicionContaminante, MantenimientoSensor
 from schemas import (
-    SensorCreate, SensorResponse, SensorUpdate,  # <--- AÑADIDO SensorUpdate
+    SensorCreate, SensorResponse, SensorUpdate, 
     UmbralSensorCreate, UmbralSensorResponse
 )
 from auth import get_current_user, get_current_empresa_admin
@@ -144,6 +144,43 @@ def get_umbrales_sensor(
     
     umbrales = db.query(UmbralSensor).filter(UmbralSensor.id_sensor == sensor_id).all()
     return umbrales
+
+# ============================================
+# OBTENER CALIBRACIONES DE UN SENSOR
+# ============================================
+@router.get("/{sensor_id}/calibraciones")
+def get_calibraciones_sensor(
+    sensor_id: int,
+    current_user: Usuario = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Obtener calibraciones de un sensor"""
+    sensor = db.query(Sensor).filter(Sensor.id == sensor_id).first()
+    if not sensor:
+        raise HTTPException(status_code=404, detail="Sensor no encontrado")
+    
+    if current_user.rol != "SUPER_ADMIN":
+        planta = db.query(Planta).filter(Planta.id == sensor.id_planta).first()
+        if not planta or planta.id_empresa != current_user.id_empresa:
+            raise HTTPException(status_code=403, detail="Sin permiso para este sensor")
+    
+    # Buscar calibraciones en mantenimiento_sensores (tipo CALIBRACION)
+    calibraciones = db.query(MantenimientoSensor).filter(
+        MantenimientoSensor.id_sensor == sensor_id,
+        MantenimientoSensor.tipo == "CALIBRACION"
+    ).order_by(MantenimientoSensor.fecha.desc()).all()
+    
+    # Convertir a formato esperado por el frontend
+    return [
+        {
+            "id": c.id,
+            "fecha": c.fecha,
+            "tecnico": c.tecnico or "No especificado",
+            "observaciones": c.observaciones or "Calibración realizada",
+            "proxima_calibracion": c.proxima_calibracion
+        }
+        for c in calibraciones
+    ]
 
 @router.post("/{sensor_id}/umbrales", response_model=UmbralSensorResponse)
 def create_umbral(

@@ -57,12 +57,18 @@ def create_planta(
     db: Session = Depends(get_db)
 ):
     """Crear una nueva planta"""
+    # Verificar permisos
     if current_user.rol != "SUPER_ADMIN" and current_user.id_empresa != planta_data.id_empresa:
         raise HTTPException(status_code=403, detail="Sin permiso para crear plantas en esta empresa")
     
+    if planta_data.id_ubicacion:
+        ubicacion = db.query(Ubicacion).filter(Ubicacion.id == planta_data.id_ubicacion).first()
+        if not ubicacion:
+            raise HTTPException(status_code=404, detail="Ubicación no encontrada")
+    
     nueva_planta = Planta(
         id_empresa=planta_data.id_empresa,
-        id_ubicacion=planta_data.id_ubicacion,
+        id_ubicacion=planta_data.id_ubicacion or 1, 
         nombre=planta_data.nombre,
         direccion=planta_data.direccion,
         actividad=planta_data.actividad,
