@@ -187,61 +187,17 @@ export default function Dashboard() {
       
       setIsFirstLoad(false);
     } catch (error) {
-      console.error('Error cargando datos:', error);
-      // Datos mock...
-      setSensores([
-        { 
-          id: 1, 
-          nombre: 'Sensor Demo 1', 
-          tipo_analizador: 'Laser',
-          modelo: 'LASER-2000',
-          fabricante: 'Siemens',
-          estado: 'ACTIVO',
-          id_planta: 1,
-          planta_nombre: 'Planta Demo',
-          fecha_instalacion: '2024-01-01',
-          frecuencia_medicion: 60,
-          contaminantes: ['CO', 'NO', 'NO2', 'NOX']
-        },
-        { 
-          id: 2, 
-          nombre: 'Sensor Demo 2', 
-          tipo_analizador: 'Quimico',
-          modelo: 'CHEM-X',
-          fabricante: 'ABB',
-          estado: 'ACTIVO',
-          id_planta: 1,
-          planta_nombre: 'Planta Demo',
-          fecha_instalacion: '2024-02-01',
-          frecuencia_medicion: 30,
-          contaminantes: ['NO', 'NO2']
-        },
-      ]);
-      
+      console.error(' Error cargando datos:', error);
+      //  No usar datos mock, mostrar 0
+      setSensores([]);
       setResumen({
-        total_mediciones: 2847,
-        sensores_activos: 2,
-        alarmas_pendientes: 3,
-        alarmas_totales: 15,
-        promedios: {
-          co: 2.4,
-          no: 15.6,
-          no2: 8.2,
-          nox: 23.8
-        }
+        total_mediciones: 0,
+        sensores_activos: 0,
+        alarmas_pendientes: 0,
+        alarmas_totales: 0,
+        promedios: { co: 0, no: 0, no2: 0, nox: 0 }
       });
-      
-      setAlarmasPorTipo([
-        { tipo: 'ALERTA', total: 10 },
-        { tipo: 'CRITICO', total: 5 }
-      ]);
-      
-      setSensorSeleccionado(1);
-      setContaminantesDisponibles([
-        { id: 1, nombre: 'CO', unidad: 'mg/m', formula: 'CO' },
-        { id: 2, nombre: 'NO2', unidad: 'mg/m', formula: 'NO' }
-      ]);
-      setContaminanteSeleccionado('CO');
+      setAlarmasPorTipo([]);
       setIsFirstLoad(false);
     } finally {
       setLoading(false);
@@ -279,26 +235,26 @@ export default function Dashboard() {
   }, [sensorSeleccionado, contaminanteSeleccionado, periodo]);
 
   const cargarTendencias = async () => {
-    try {
-      if (!sensorSeleccionado || !contaminanteSeleccionado) {
-        setTendencias([]);
-        return;
-      }
-      
-      const data = await dashboardService.getTendencias(
-        contaminanteSeleccionado.toLowerCase(), 
-        periodo, 
-        sensorSeleccionado,
-        empresaId
-      );
-      setTendencias(data || []);
-    } catch (error) {
-      console.error('Error cargando tendencias:', error);
+  try {
+    if (!sensorSeleccionado || !contaminanteSeleccionado) {
       setTendencias([]);
-    } finally {
-      setLoadingTendencias(false);
+      return;
     }
-  };
+    
+    const data = await dashboardService.getTendencias(
+      contaminanteSeleccionado.toUpperCase(),  
+      periodo, 
+      sensorSeleccionado,
+      empresaId
+    );
+    setTendencias(data || []);
+  } catch (error) {
+    console.error('Error cargando tendencias:', error);
+    setTendencias([]);
+  } finally {
+    setLoadingTendencias(false);
+  }
+};
 
   const handleSensorChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
     const id = Number(e.target.value);

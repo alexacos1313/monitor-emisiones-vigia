@@ -26,16 +26,20 @@ export interface Tendencia {
 class DashboardService extends BaseService {
   constructor() {
     super({ useMock: false });
+    console.log(' [DashboardService] Inicializado');
   }
 
   async getResumen(empresa_id?: number, sensor_id?: number): Promise<DashboardResumen> {
     try {
       const params: any = {};
-       if (empresa_id) params.empresa_id = empresa_id;
-    if (sensor_id) params.sensor_id = sensor_id;  
+      if (empresa_id) params.empresa_id = empresa_id;
+      if (sensor_id) params.sensor_id = sensor_id;
       
+      console.log(' [DashboardService] getResumen - params:', params);
       const response = await api.get('/dashboard/resumen', { params });
       const data = response.data;
+      
+      console.log(' [DashboardService] Resumen recibido:', data);
       
       return {
         total_mediciones: data.total_mediciones || 0,
@@ -50,7 +54,7 @@ class DashboardService extends BaseService {
         }
       };
     } catch (error) {
-      console.error('Error cargando resumen:', error);
+      console.error(' Error cargando resumen:', error);
       return {
         total_mediciones: 0,
         sensores_activos: 0,
@@ -62,14 +66,17 @@ class DashboardService extends BaseService {
   }
 
   async getTendencias(
-    contaminante: string = 'nox', 
+    contaminante: string = 'NOX',  
     dias: number = 7, 
     sensor_id?: number,
     empresa_id?: number
   ): Promise<Tendencia[]> {
     try {
+      //  Asegurar que el contaminante está en mayúsculas
+      const contaminanteUpper = contaminante.toUpperCase();
+      
       const params = new URLSearchParams({
-        contaminante,
+        contaminante: contaminanteUpper,  
         dias: dias.toString()
       });
       if (sensor_id) {
@@ -79,8 +86,11 @@ class DashboardService extends BaseService {
         params.append('empresa_id', empresa_id.toString());
       }
       
+      console.log(' [DashboardService] getTendencias - params:', params.toString());
       const response = await api.get(`/dashboard/tendencias?${params.toString()}`);
       const datos = response.data.datos || [];
+      
+      console.log(' [DashboardService] Tendencias recibidas:', datos.length);
       
       return datos.map((item: any) => ({
         fecha: item.fecha,
@@ -90,7 +100,7 @@ class DashboardService extends BaseService {
         mediciones: item.mediciones || 0
       }));
     } catch (error) {
-      console.error('Error cargando tendencias:', error);
+      console.error(' Error cargando tendencias:', error);
       return [];
     }
   }

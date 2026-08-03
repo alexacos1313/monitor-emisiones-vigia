@@ -10,9 +10,7 @@ from auth import get_current_user, get_current_super_admin
 
 router = APIRouter(prefix="/dashboard", tags=["Dashboard"], redirect_slashes=False)
 
-# Lista de contaminantes válidos
-CONTAMINANTES_VALIDOS = ["co", "no", "no2", "nox"]
-
+CONTAMINANTES_VALIDOS = ["CO", "NO", "NO2", "NOX"]
 
 @router.get("/resumen")
 def get_resumen(
@@ -34,12 +32,11 @@ def get_resumen(
     if current_user.rol != "SUPER_ADMIN":
         empresa_id = current_user.id_empresa
     
-    #  Construir query de sensores con filtros
+    # Construir query de sensores con filtros
     sensores_query = db.query(Sensor.id)
     if empresa_id:
         sensores_query = sensores_query.join(Planta).filter(Planta.id_empresa == empresa_id)
     
-    #  Filtrar por sensor si se proporciona
     if sensor_id:
         sensores_query = sensores_query.filter(Sensor.id == sensor_id)
     
@@ -49,14 +46,12 @@ def get_resumen(
     # MÉTRICAS GENERALES
     # ============================================
     
-    # Total mediciones
     total_mediciones = db.query(func.count(Medicion.id)).filter(
         Medicion.id_sensor.in_(sensores_ids),
         Medicion.timestamp >= fecha_inicio,
         Medicion.timestamp <= fecha_fin
     ).scalar() or 0
     
-    # Sensores activos
     query_sensores = db.query(Sensor).filter(Sensor.estado == "ACTIVO")
     if empresa_id:
         query_sensores = query_sensores.join(Planta).filter(Planta.id_empresa == empresa_id)
@@ -65,7 +60,7 @@ def get_resumen(
     sensores_activos = query_sensores.count()
     
     # ============================================
-    # PROMEDIOS POR CONTAMINANTE (dinámico)
+    # PROMEDIOS POR CONTAMINANTE
     # ============================================
     
     promedios = db.query(
@@ -75,7 +70,7 @@ def get_resumen(
         Medicion.id_sensor.in_(sensores_ids),
         Medicion.timestamp >= fecha_inicio,
         Medicion.timestamp <= fecha_fin,
-        MedicionContaminante.contaminante.in_(["CO", "NO", "NO2", "NOX"])
+        MedicionContaminante.contaminante.in_(CONTAMINANTES_VALIDOS)  
     ).group_by(MedicionContaminante.contaminante).all()
     
     promedios_dict = {}
@@ -83,7 +78,7 @@ def get_resumen(
         promedios_dict[p.contaminante.lower()] = float(p.promedio) if p.promedio else 0
     
     # ============================================
-    # MÁXIMOS POR CONTAMINANTE (dinámico)
+    # MÁXIMOS POR CONTAMINANTE
     # ============================================
     
     maximos = db.query(
@@ -93,7 +88,7 @@ def get_resumen(
         Medicion.id_sensor.in_(sensores_ids),
         Medicion.timestamp >= fecha_inicio,
         Medicion.timestamp <= fecha_fin,
-        MedicionContaminante.contaminante.in_(["CO", "NO", "NO2", "NOX"])
+        MedicionContaminante.contaminante.in_(CONTAMINANTES_VALIDOS)  
     ).group_by(MedicionContaminante.contaminante).all()
     
     maximos_dict = {}
@@ -153,18 +148,17 @@ def get_resumen(
 
 @router.get("/tendencias")
 def get_tendencias(
-    contaminante: str = Query(..., description="co, no, no2, nox"),
+    contaminante: str = Query(..., description="Contaminante: CO, NO, NO2, NOX"),
     empresa_id: Optional[int] = Query(None),
     sensor_id: Optional[int] = Query(None),
     dias: int = Query(7, ge=1, le=90),
     current_user: Usuario = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Obtener tendencia de un contaminante por dia"""
+    """Obtener tendencia de un contaminante por día"""
     
-    # Validar contaminante
     contaminante_upper = contaminante.upper()
-    if contaminante not in CONTAMINANTES_VALIDOS:
+    if contaminante_upper not in CONTAMINANTES_VALIDOS:
         raise HTTPException(
             status_code=400, 
             detail=f"Contaminante no válido. Use: {', '.join(CONTAMINANTES_VALIDOS)}"
@@ -180,18 +174,14 @@ def get_tendencias(
     # Construir query de sensores
     sensores_query = db.query(Sensor.id)
     
-    # Filtrar por empresa
     if empresa_id:
         sensores_query = sensores_query.join(Planta).filter(Planta.id_empresa == empresa_id)
     
-    # Filtrar por sensor específico si se proporciona
     if sensor_id:
-        # Verificar que el sensor pertenece a la empresa
         sensor_check = db.query(Sensor).filter(Sensor.id == sensor_id).first()
         if not sensor_check:
             raise HTTPException(status_code=404, detail="Sensor no encontrado")
         
-        # Si el usuario no es SUPER_ADMIN, verificar que el sensor es de su empresa
         if current_user.rol != "SUPER_ADMIN":
             planta = db.query(Planta).filter(Planta.id == sensor_check.id_planta).first()
             if not planta or planta.id_empresa != current_user.id_empresa:
@@ -201,7 +191,7 @@ def get_tendencias(
     
     sensores_ids = sensores_query.subquery().select()
     
-    # Obtener tendencias desde mediciones_contaminantes
+
     resultados = db.query(
         func.date(Medicion.timestamp).label("fecha"),
         func.avg(MedicionContaminante.valor).label("promedio"),
@@ -214,13 +204,13 @@ def get_tendencias(
         Medicion.id_sensor.in_(sensores_ids),
         Medicion.timestamp >= fecha_inicio,
         Medicion.timestamp <= fecha_fin,
-        MedicionContaminante.contaminante == contaminante_upper
+        MedicionContaminante.contaminante == contaminante_upper 
     ).group_by(
         func.date(Medicion.timestamp)
     ).order_by("fecha").all()
     
     return {
-        "contaminante": contaminante,
+        "contaminante": contaminante_upper,
         "dias": dias,
         "sensor_id": sensor_id,
         "datos": [
@@ -238,7 +228,7 @@ def get_tendencias(
 
 @router.get("/comparativa")
 def get_comparativa(
-    contaminante: str = Query(..., description="co, no, no2, nox"),
+    contaminante: str = Query(..., description="CO, NO, NO2, NOX"),
     periodo1_inicio: datetime = Query(...),
     periodo1_fin: datetime = Query(...),
     periodo2_inicio: datetime = Query(...),
@@ -249,9 +239,8 @@ def get_comparativa(
 ):
     """Comparar dos periodos de tiempo"""
     
-    # Validar contaminante
     contaminante_upper = contaminante.upper()
-    if contaminante not in CONTAMINANTES_VALIDOS:
+    if contaminante_upper not in CONTAMINANTES_VALIDOS:
         raise HTTPException(
             status_code=400, 
             detail=f"Contaminante no válido. Use: {', '.join(CONTAMINANTES_VALIDOS)}"
@@ -272,7 +261,7 @@ def get_comparativa(
             Medicion.id_sensor.in_(sensores_ids),
             Medicion.timestamp >= fecha_inicio,
             Medicion.timestamp <= fecha_fin,
-            MedicionContaminante.contaminante == contaminante_upper
+            MedicionContaminante.contaminante == contaminante_upper  
         ).scalar() or 0
         return float(result)
     
@@ -282,7 +271,7 @@ def get_comparativa(
     variacion = ((promedio2 - promedio1) / promedio1 * 100) if promedio1 > 0 else 0
     
     return {
-        "contaminante": contaminante,
+        "contaminante": contaminante_upper,
         "periodo1": {
             "inicio": periodo1_inicio,
             "fin": periodo1_fin,
@@ -300,7 +289,7 @@ def get_comparativa(
 
 @router.get("/top-empresas")
 def get_top_empresas(
-    contaminante: str = Query(..., description="co, no, no2, nox"),
+    contaminante: str = Query(..., description="CO, NO, NO2, NOX"),
     limit: int = Query(5, ge=1, le=20),
     current_user: Usuario = Depends(get_current_super_admin),
     db: Session = Depends(get_db)
@@ -309,8 +298,7 @@ def get_top_empresas(
     
     contaminante_upper = contaminante.upper()
     
-    # Validar contaminante
-    if contaminante not in CONTAMINANTES_VALIDOS:
+    if contaminante_upper not in CONTAMINANTES_VALIDOS:
         raise HTTPException(
             status_code=400, 
             detail=f"Contaminante no válido. Use: {', '.join(CONTAMINANTES_VALIDOS)}"
