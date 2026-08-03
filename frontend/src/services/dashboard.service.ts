@@ -104,6 +104,28 @@ class DashboardService extends BaseService {
       return [];
     }
   }
+
+  async getSensoresActivos(empresa_id?: number): Promise<{ sensores_activos: number; total_sensores: number }> {
+    try {
+      const params: any = {};
+      if (empresa_id) params.empresa_id = empresa_id;
+      
+      console.log('[DashboardService] getSensoresActivos - params:', params);
+      const response = await api.get('/dashboard/sensores-activos', { params });
+      
+      console.log('[DashboardService] Sensores activos recibidos:', response.data);
+      
+      return {
+        sensores_activos: response.data.sensores_activos || 0,
+        total_sensores: response.data.total_sensores || 0
+      };
+    } catch (error) {
+      console.error('Error cargando sensores activos:', error);
+      return { sensores_activos: 0, total_sensores: 0 };
+    }
+  }
 }
+
+
 
 export const dashboardService = new DashboardService();

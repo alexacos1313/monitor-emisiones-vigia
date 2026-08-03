@@ -332,3 +332,34 @@ def get_top_empresas(
         }
         for r in resultados
     ]
+
+@router.get("/sensores-activos")
+def get_sensores_activos(
+    empresa_id: Optional[int] = Query(None),
+    current_user: Usuario = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Obtener solo el conteo de sensores activos de una empresa"""
+    
+    # Obtener IDs de sensores según permisos
+    if current_user.rol != "SUPER_ADMIN":
+        empresa_id = current_user.id_empresa
+    
+    # Construir query
+    query_sensores = db.query(Sensor).filter(Sensor.estado == "ACTIVO")
+    
+    if empresa_id:
+        query_sensores = query_sensores.join(Planta).filter(Planta.id_empresa == empresa_id)
+    
+    sensores_activos = query_sensores.count()
+    
+    # También obtener el total de sensores para información
+    query_total = db.query(Sensor)
+    if empresa_id:
+        query_total = query_total.join(Planta).filter(Planta.id_empresa == empresa_id)
+    total_sensores = query_total.count()
+    
+    return {
+        "sensores_activos": sensores_activos,
+        "total_sensores": total_sensores
+    }

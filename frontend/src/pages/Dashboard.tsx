@@ -37,7 +37,6 @@ export default function Dashboard() {
   const empresaId = useEmpresaId();
   const empresaNombre = useEmpresaNombre();
 
-  // Redirigir si no hay empresa
   useEffect(() => {
     if (!empresaId) {
       navigate('/empresas');
@@ -50,35 +49,30 @@ export default function Dashboard() {
     }
   }, [empresaId]);
 
-  // Cuando cambia el sensor, cargar contaminantes y tendencias
   useEffect(() => {
     if (sensorSeleccionado && !isFirstLoad) {
       cargarContaminantesDelSensor(sensorSeleccionado);
     }
   }, [sensorSeleccionado, isFirstLoad]);
 
-  // Cuando cambia el contaminante o el periodo, recargar tendencias
   useEffect(() => {
     if (!isFirstLoad && sensorSeleccionado && contaminanteSeleccionado) {
       cargarTendenciasConDebounce();
     }
   }, [periodo, contaminanteSeleccionado, sensorSeleccionado]);
 
-  // Recargar resumen cuando cambia el sensor
   useEffect(() => {
     if (sensorSeleccionado && !isFirstLoad) {
-      recargarResumen(sensorSeleccionado);
+      recargarResumen();
     }
   }, [sensorSeleccionado]);
 
-  // Recargar estadisticas de alarmas cuando cambia el sensor
   useEffect(() => {
     if (sensorSeleccionado && !isFirstLoad) {
       recargarEstadisticas(sensorSeleccionado);
     }
   }, [sensorSeleccionado]);
 
-  // Conectar WebSocket
   useEffect(() => {
     const token = localStorage.getItem('token');
     if (token) {
@@ -92,25 +86,23 @@ export default function Dashboard() {
     };
   }, []);
 
-  // Escuchar alarmas en tiempo real
   useEffect(() => {
     const unsubscribe = websocketService.onAlarma((alarma) => {
-      console.log(' Alarma en tiempo real:', alarma);
+      console.log('Alarma en tiempo real:', alarma);
       if (sensorSeleccionado) {
         recargarEstadisticas(sensorSeleccionado);
-        recargarResumen(sensorSeleccionado);
+        recargarResumen();
       }
     });
     
     return () => unsubscribe();
   }, [sensorSeleccionado]);
 
-  //  Escuchar nuevas mediciones en tiempo real
   useEffect(() => {
     const unsubscribe = websocketService.onMedicion((medicion) => {
-      console.log(' Nueva medición en tiempo real:', medicion);
+      console.log('Nueva medicion en tiempo real:', medicion);
       if (sensorSeleccionado && medicion.id_sensor === sensorSeleccionado) {
-        recargarResumen(sensorSeleccionado);
+        recargarResumen();
         recargarTendencias();
       }
     });
@@ -118,24 +110,37 @@ export default function Dashboard() {
     return () => unsubscribe();
   }, [sensorSeleccionado]);
 
-  //  Recarga periódica cada 30 segundos (respaldo)
   useEffect(() => {
     if (!sensorSeleccionado || isFirstLoad) return;
     
     const interval = setInterval(() => {
-      console.log(' Actualización automática (30s)');
-      recargarResumen(sensorSeleccionado);
+      console.log('Actualizacion automatica (30s)');
+      recargarResumen();
       recargarEstadisticas(sensorSeleccionado);
     }, 30000);
     
     return () => clearInterval(interval);
   }, [sensorSeleccionado]);
 
-  const recargarResumen = async (sensorId: number) => {
+  const recargarResumen = async () => {
     try {
-      console.log('Recargando resumen para sensor:', sensorId);
-      const resumenData = await dashboardService.getResumen(empresaId, sensorId);
-      setResumen(resumenData);
+      console.log('Recargando resumen para empresa:', empresaId);
+      
+      // Obtener sensores activos desde el nuevo endpoint (sin sensor_id)
+      const sensoresActivosData = await dashboardService.getSensoresActivos(empresaId);
+      
+      // Obtener el resto del resumen con el sensor seleccionado
+      const resumenData = await dashboardService.getResumen(empresaId, sensorSeleccionado || undefined);
+      
+      // Combinar: usar el conteo de sensores activos del nuevo endpoint
+      const resumenFinal = {
+        ...resumenData,
+        sensores_activos: sensoresActivosData.sensores_activos
+      };
+      
+      console.log('Resumen recibido:', resumenFinal);
+      console.log('Sensores activos:', resumenFinal?.sensores_activos);
+      setResumen(resumenFinal);
     } catch (error) {
       console.error('Error recargando resumen:', error);
     }
@@ -165,15 +170,32 @@ export default function Dashboard() {
     setLoading(true);
     try {
       const sensoresData = await sensorService.getSensores(undefined, empresaId);
+      console.log('Sensores cargados:', sensoresData.length);
       setSensores(sensoresData);
       
       const primerSensor = sensoresData.length > 0 ? sensoresData[0] : null;
       
+      // Obtener sensores activos desde el nuevo endpoint (sin sensor_id)
+      const sensoresActivosData = await dashboardService.getSensoresActivos(empresaId);
+      
+      // Obtener el resto del resumen CON sensor_id (para mediciones, alarmas, promedios)
       const [resumenData, estadisticasData] = await Promise.all([
         dashboardService.getResumen(empresaId, primerSensor?.id),
         alarmaService.getEstadisticas(primerSensor?.id)
       ]);
-      setResumen(resumenData);
+      
+      // Combinar: usar el conteo de sensores activos del nuevo endpoint
+      const resumenFinal = {
+        ...resumenData,
+        sensores_activos: sensoresActivosData.sensores_activos
+      };
+      
+      console.log('=== DATOS DEL RESUMEN ===');
+      console.log('Sensores activos (nuevo endpoint):', sensoresActivosData.sensores_activos);
+      console.log('Sensores activos (resumen):', resumenData?.sensores_activos);
+      console.log('=========================');
+      
+      setResumen(resumenFinal);
       
       if (estadisticasData) {
         setAlarmasPorTipo(estadisticasData.por_tipo || []);
@@ -187,8 +209,7 @@ export default function Dashboard() {
       
       setIsFirstLoad(false);
     } catch (error) {
-      console.error(' Error cargando datos:', error);
-      //  No usar datos mock, mostrar 0
+      console.error('Error cargando datos:', error);
       setSensores([]);
       setResumen({
         total_mediciones: 0,
@@ -235,26 +256,26 @@ export default function Dashboard() {
   }, [sensorSeleccionado, contaminanteSeleccionado, periodo]);
 
   const cargarTendencias = async () => {
-  try {
-    if (!sensorSeleccionado || !contaminanteSeleccionado) {
+    try {
+      if (!sensorSeleccionado || !contaminanteSeleccionado) {
+        setTendencias([]);
+        return;
+      }
+      
+      const data = await dashboardService.getTendencias(
+        contaminanteSeleccionado.toUpperCase(),
+        periodo,
+        sensorSeleccionado,
+        empresaId
+      );
+      setTendencias(data || []);
+    } catch (error) {
+      console.error('Error cargando tendencias:', error);
       setTendencias([]);
-      return;
+    } finally {
+      setLoadingTendencias(false);
     }
-    
-    const data = await dashboardService.getTendencias(
-      contaminanteSeleccionado.toUpperCase(),  
-      periodo, 
-      sensorSeleccionado,
-      empresaId
-    );
-    setTendencias(data || []);
-  } catch (error) {
-    console.error('Error cargando tendencias:', error);
-    setTendencias([]);
-  } finally {
-    setLoadingTendencias(false);
-  }
-};
+  };
 
   const handleSensorChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
     const id = Number(e.target.value);
@@ -267,7 +288,7 @@ export default function Dashboard() {
       setModalData({
         fecha: punto.fecha,
         valor: punto.promedio,
-        maximo: punto.maximo, 
+        maximo: punto.maximo,
         contaminante: contaminanteSeleccionado,
         mediciones: punto.mediciones || 0
       });
