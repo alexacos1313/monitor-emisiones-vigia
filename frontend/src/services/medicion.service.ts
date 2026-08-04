@@ -12,6 +12,7 @@ export interface Medicion {
   flujo: number | null;
   oxigeno: number | null;
   estado: string;
+  procesada_ia?: number;
 }
 
 export interface FiltrosMedicion {
@@ -34,7 +35,17 @@ class MedicionService extends BaseService {
       if (empresa_id) {
         params.empresa_id = empresa_id;
       }
+      
+      // Eliminar parámetros undefined o null
+      Object.keys(params).forEach(key => {
+        if (params[key] === undefined || params[key] === null || params[key] === '') {
+          delete params[key];
+        }
+      });
+      
+      console.log('Consultando mediciones con params:', params);
       const response = await api.get('/mediciones/', { params });
+      console.log('Mediciones recibidas:', response.data?.length || 0);
       return response.data || [];
     } catch (error) {
       console.error('Error cargando mediciones:', error);

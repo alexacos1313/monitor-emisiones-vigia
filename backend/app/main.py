@@ -1,9 +1,6 @@
 # backend/app/main.py
 import sys
 import os
-import threading
-import subprocess
-import time
 from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -11,7 +8,6 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from auth import get_current_user
 from routes import *
-
 
 app = FastAPI(title="VIGIA API", version="1.0.0")
 
@@ -57,4 +53,3 @@ def root():
 @app.get("/health")
 def health():
     return {"status": "healthy"}
-

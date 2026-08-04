@@ -1,5 +1,5 @@
 // frontend/src/pages/MedicionesPage.tsx
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Row, Col, Card, Form, Button, Badge, Spinner, Alert, Modal } from 'react-bootstrap';
 import { 
   LineChart, Line, XAxis, YAxis, CartesianGrid, 
@@ -21,7 +21,15 @@ export default function MedicionesPage() {
   const [contaminantes, setContaminantes] = useState<Contaminante[]>([]);
   const [loading, setLoading] = useState(true);
   
+  // Estado para los filtros aplicados
   const [filtros, setFiltros] = useState<FiltrosMedicion>({
+    sensor_id: undefined,
+    fecha_inicio: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    fecha_fin: new Date().toISOString().split('T')[0],
+  });
+  
+  // Estado para los filtros actuales (los que se están usando)
+  const [filtrosActuales, setFiltrosActuales] = useState<FiltrosMedicion>({
     sensor_id: undefined,
     fecha_inicio: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     fecha_fin: new Date().toISOString().split('T')[0],
@@ -31,7 +39,6 @@ export default function MedicionesPage() {
   const [contaminantesDelSensor, setContaminantesDelSensor] = useState<string[]>([]);
   const [contaminanteSeleccionado, setContaminanteSeleccionado] = useState<string>('');
   const [chartData, setChartData] = useState<any[]>([]);
-
   const [showModal, setShowModal] = useState(false);
   const [modalData, setModalData] = useState<any>(null);
 
@@ -40,9 +47,24 @@ export default function MedicionesPage() {
   const empresaNombre = useEmpresaNombre();
   const esSuperAdmin = user?.rol === 'SUPER_ADMIN';
 
+  // Cargar datos iniciales
   useEffect(() => {
     cargarDatosIniciales();
   }, [empresaId]);
+
+  // Cuando cambia el sensor, cargar mediciones y contaminantes
+  useEffect(() => {
+    if (filtrosActuales.sensor_id !== undefined && filtrosActuales.sensor_id !== null) {
+      cargarMedicionesYContaminantes();
+    }
+  }, [filtrosActuales.sensor_id]);
+
+  // Cuando cambia el contaminante, recalcular el gráfico
+  useEffect(() => {
+    if (mediciones.length > 0 && contaminanteSeleccionado) {
+      prepararDatosGrafico(mediciones);
+    }
+  }, [contaminanteSeleccionado]);
 
   const cargarDatosIniciales = async () => {
     setLoading(true);
@@ -66,7 +88,14 @@ export default function MedicionesPage() {
       
       if (sensoresData.length > 0) {
         const primerSensor = sensoresData[0];
-        setFiltros({ ...filtros, sensor_id: primerSensor.id });
+        const nuevosFiltros = { 
+          ...filtros, 
+          sensor_id: primerSensor.id,
+          fecha_inicio: filtros.fecha_inicio,
+          fecha_fin: filtros.fecha_fin
+        };
+        setFiltros(nuevosFiltros);
+        setFiltrosActuales(nuevosFiltros);
         setSensorSeleccionado(primerSensor);
       }
     } catch (error) {
@@ -77,25 +106,16 @@ export default function MedicionesPage() {
     }
   };
 
-  useEffect(() => {
-    if (filtros.sensor_id !== undefined && filtros.sensor_id !== null) {
-      cargarMedicionesYContaminantes();
-    }
-  }, [filtros.sensor_id]);
-
-  useEffect(() => {
-    if (mediciones.length > 0 && contaminanteSeleccionado) {
-      prepararDatosGrafico(mediciones);
-    }
-  }, [contaminanteSeleccionado]);
-
   const cargarMedicionesYContaminantes = async () => {
     setLoading(true);
     try {
-      const data = await medicionService.getMediciones(filtros);
+      // Cargar mediciones con los filtros actuales
+      const data = await medicionService.getMediciones(filtrosActuales);
+      console.log('Mediciones cargadas:', data.length);
+      console.log('Filtros aplicados:', filtrosActuales);
       setMediciones(data);
       
-      const sensor = sensores.find(s => s.id === filtros.sensor_id);
+      const sensor = sensores.find(s => s.id === filtrosActuales.sensor_id);
       setSensorSeleccionado(sensor || null);
       
       if (sensor) {
@@ -120,6 +140,7 @@ export default function MedicionesPage() {
         const primerContaminante = contaminantesSensor.length > 0 ? contaminantesSensor[0] : 'CO';
         setContaminanteSeleccionado(primerContaminante);
         
+        // Preparar datos del gráfico con el primer contaminante
         prepararDatosGraficoConContaminante(data, primerContaminante);
       }
     } catch (error) {
@@ -137,13 +158,12 @@ export default function MedicionesPage() {
     }
 
     const contaminanteLower = contaminante.toLowerCase();
-    const agrupado: { [key: string]: { max: number; fecha: string; mediciones: number; dia: string; valores: number[] } } = {};
+    const agrupado: { [key: string]: { max: number; fecha: string; mediciones: number; dia: string; valores: number[]; promedio: number } } = {};
     
     datos.forEach(m => {
       const fecha = new Date(m.timestamp);
       const diaKey = fecha.toISOString().slice(0, 10);
       
-      // Buscar el valor del contaminante en el array
       const contaminanteData = m.contaminantes?.find(
         c => c.contaminante.toLowerCase() === contaminanteLower
       );
@@ -159,7 +179,8 @@ export default function MedicionesPage() {
           }),
           mediciones: 0,
           dia: diaKey,
-          valores: []
+          valores: [],
+          promedio: 0
         };
       }
       
@@ -172,15 +193,21 @@ export default function MedicionesPage() {
     
     const datosAgrupados = Object.entries(agrupado)
       .sort((a, b) => a[0].localeCompare(b[0]))
-      .map(([key, value]) => ({
-        fecha: value.fecha,
-        valor: parseFloat(value.max.toFixed(2)),
-        mediciones: value.mediciones,
-        dia: value.dia,
-        valores: value.valores,
-        promedio: parseFloat((value.valores.reduce((a, b) => a + b, 0) / value.valores.length).toFixed(2))
-      }));
+      .map(([key, value]) => {
+        const promedio = value.valores.length > 0 
+          ? value.valores.reduce((a, b) => a + b, 0) / value.valores.length 
+          : 0;
+        return {
+          fecha: value.fecha,
+          valor: parseFloat(value.max.toFixed(2)),
+          mediciones: value.mediciones,
+          dia: key,
+          valores: value.valores,
+          promedio: parseFloat(promedio.toFixed(2))
+        };
+      });
     
+    console.log('Datos del gráfico:', datosAgrupados);
     setChartData(datosAgrupados);
   };
 
@@ -188,10 +215,15 @@ export default function MedicionesPage() {
     prepararDatosGraficoConContaminante(datos, contaminanteSeleccionado);
   };
 
+  // Función para buscar con los filtros actuales
   const cargarMediciones = async () => {
     setLoading(true);
     try {
+      // Actualizar filtros actuales con los valores del formulario
+      setFiltrosActuales({ ...filtros });
+      
       const data = await medicionService.getMediciones(filtros);
+      console.log('Búsqueda manual - Mediciones:', data.length);
       setMediciones(data);
       prepararDatosGrafico(data);
     } catch (error) {
@@ -328,7 +360,6 @@ export default function MedicionesPage() {
     );
   }
 
-  // Determinar si hay datos para el grafico
   const tieneDatosGrafico = chartData.length > 0;
   const tieneMediciones = mediciones.length > 0;
   const tieneContaminantes = contaminantesDelSensor.length > 0;
@@ -466,9 +497,9 @@ export default function MedicionesPage() {
                 <div className="d-flex justify-content-between align-items-center">
                   <h5 className="mb-0">
                     <i className="bi bi-graph-up me-2 text-success"></i>
-                    Pico Maximo Diario
+                    Evolucion Diaria - {getContaminanteLabel(contaminanteSeleccionado)}
                     <small className="text-muted ms-2">
-                      {contaminanteSeleccionado} - {sensorSeleccionado?.nombre || ''}
+                      {sensorSeleccionado?.nombre || ''}
                     </small>
                   </h5>
                   {contaminantesGrafico.length > 1 && (
@@ -484,6 +515,12 @@ export default function MedicionesPage() {
                       ))}
                     </Form.Select>
                   )}
+                </div>
+                <div className="mt-2">
+                  <small className="text-muted">
+                    Periodo: {filtrosActuales.fecha_inicio || 'N/A'} - {filtrosActuales.fecha_fin || 'N/A'} | 
+                    Total mediciones: {mediciones.length}
+                  </small>
                 </div>
               </Card.Header>
               <Card.Body>
@@ -521,9 +558,9 @@ export default function MedicionesPage() {
           ) : (
             <Alert variant="info" className="mb-4">
               <i className="bi bi-info-circle me-2"></i>
-              No hay datos de {getContaminanteLabel(contaminanteSeleccionado)} para mostrar el grafico.
+              No hay datos de {getContaminanteLabel(contaminanteSeleccionado)} para mostrar el grafico en el periodo seleccionado.
               {tieneMediciones && ' Hay mediciones pero no contienen datos de este contaminante.'}
-              {!tieneMediciones && ' No hay mediciones registradas para este sensor.'}
+              {!tieneMediciones && ' No hay mediciones registradas para este sensor en el periodo seleccionado.'}
             </Alert>
           )}
         </>

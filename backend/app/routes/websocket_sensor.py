@@ -22,7 +22,6 @@ async def websocket_sensor(websocket: WebSocket, sensor_id: int):
     db = SessionLocal()
     
     try:
-        # Verificar que el sensor existe
         sensor = db.query(Sensor).filter(Sensor.id == sensor_id).first()
         if not sensor:
             await websocket.close(code=1008, reason="Sensor no encontrado")
@@ -30,7 +29,6 @@ async def websocket_sensor(websocket: WebSocket, sensor_id: int):
             return
         
         while True:
-            # Recibir datos del sensor
             try:
                 data = await websocket.receive_text()
                 datos = json.loads(data)
@@ -39,28 +37,25 @@ async def websocket_sensor(websocket: WebSocket, sensor_id: int):
                 await websocket.send_json({"status": "error", "mensaje": "JSON inválido"})
                 continue
             
-            # Validar que los datos sean un diccionario
             if not isinstance(datos, dict):
                 await websocket.send_json({"status": "error", "mensaje": "Formato inválido"})
                 continue
             
             logger.info(f"Datos recibidos de sensor {sensor_id}: {datos}")
             
-            # Crear medición
             nueva_medicion = Medicion(
                 id_sensor=sensor_id,
-                timestamp=datetime.now(),
+                timestamp=datetime.now(),  # <-- Como estaba antes
                 temperatura=datos.get("temperatura"),
                 flujo=datos.get("flujo"),
                 oxigeno=datos.get("oxigeno"),
                 estado="VALIDADO"
             )
             db.add(nueva_medicion)
-            db.flush()  # Para obtener el ID
+            db.flush()
             
-            # Guardar contaminantes (CO, NO, NO2, NOX)
-            contaminantes_objetos = []  # Para guardar los objetos
-            contaminantes_guardados = []  #  Para los logs
+            contaminantes_objetos = []
+            contaminantes_guardados = []
             for cont in ['co', 'no', 'no2', 'nox']:
                 valor = datos.get(cont)
                 if valor is not None:
@@ -71,7 +66,7 @@ async def websocket_sensor(websocket: WebSocket, sensor_id: int):
                         valor=float(valor)
                     )
                     db.add(mc)
-                    contaminantes_objetos.append(mc) 
+                    contaminantes_objetos.append(mc)
                     contaminantes_guardados.append(f"{cont_upper}={valor}")
             
             db.commit()
@@ -79,7 +74,6 @@ async def websocket_sensor(websocket: WebSocket, sensor_id: int):
             
             logger.info(f"Medición {nueva_medicion.id} guardada con contaminantes: {', '.join(contaminantes_guardados)}")
             
-            #  ENVIAR MEDICIÓN POR WEBSOCKET usando los objetos
             try:
                 mensaje_medicion = {
                     "tipo": "nueva_medicion",
@@ -89,23 +83,20 @@ async def websocket_sensor(websocket: WebSocket, sensor_id: int):
                         "sensor": sensor.nombre,
                         "timestamp": nueva_medicion.timestamp.isoformat(),
                         "contaminantes": {
-                            mc.contaminante: mc.valor for mc in contaminantes_objetos 
+                            mc.contaminante: mc.valor for mc in contaminantes_objetos
                         }
                     }
                 }
-                # Enviar a todos los usuarios conectados
                 await manager.broadcast_to_all(mensaje_medicion)
                 logger.info(f"Medición {nueva_medicion.id} enviada por WebSocket")
             except Exception as e:
                 logger.error(f"Error enviando medición por WebSocket: {e}")
             
-            # Generar alarmas si es necesario
             try:
                 await verificar_y_generar_alarmas(db, nueva_medicion.id)
             except Exception as e:
                 logger.error(f"Error generando alarmas para sensor {sensor_id}: {e}")
             
-            # Confirmar recepción
             await websocket.send_json({
                 "status": "ok",
                 "medicion_id": nueva_medicion.id,
